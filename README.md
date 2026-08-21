@@ -179,3 +179,5 @@ python src/prioritize_bridges.py
 
 ## Git Repository
 Initialized with Git. Use GitHub Desktop or command line to push to a remote repository.
+
+**Author:** [DKS-MANAGER](https://github.com/DKS-MANAGER)
