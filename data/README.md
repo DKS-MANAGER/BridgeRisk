@@ -1,5 +1,8 @@
 # Raw Data Download Instructions
 
+**Author:** Divyansh Kumar Singh (DKS) · M.Tech Civil Engineering (Hydraulic), IIT Kanpur  
+**GitHub:** [DKS-MANAGER](https://github.com/DKS-MANAGER)
+
 ## Data Source
 Official FHWA National Bridge Inventory (NBI) ASCII files.
 

@@ -1,5 +1,8 @@
 # Methodology
 
+**Author:** Divyansh Kumar Singh (DKS) · M.Tech Civil Engineering (Hydraulic), IIT Kanpur  
+**GitHub:** [DKS-MANAGER](https://github.com/DKS-MANAGER)
+
 ## What Bridge Condition Rating Means
 The National Bridge Inventory (NBI) assigns each bridge a **deck condition rating** from 0 to 9:
 - **9** = Excellent

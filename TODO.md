@@ -1,5 +1,8 @@
 # Bridge Condition XGBoost Project TODO
 
+**Author:** Divyansh Kumar Singh (DKS) · M.Tech Civil Engineering (Hydraulic), IIT Kanpur  
+**GitHub:** [DKS-MANAGER](https://github.com/DKS-MANAGER)
+
 - [x] Select suitable state
 - [x] Download 2023 data
 - [x] Download 2024 data

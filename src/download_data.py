@@ -1,3 +1,10 @@
+"""
+Download FHWA NBI data for Maine (2023–2025).
+
+Author: Divyansh Kumar Singh (DKS) · M.Tech Civil Engineering (Hydraulic), IIT Kanpur
+GitHub: https://github.com/DKS-MANAGER
+"""
+
 import os
 import hashlib
 import requests

@@ -1,3 +1,10 @@
+"""
+Evaluate trained models on chronological test data.
+
+Author: Divyansh Kumar Singh (DKS) · M.Tech Civil Engineering (Hydraulic), IIT Kanpur
+GitHub: https://github.com/DKS-MANAGER
+"""
+
 import os
 import json
 import joblib

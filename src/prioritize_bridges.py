@@ -1,3 +1,10 @@
+"""
+Rank bridges by maintenance priority using model predictions and configurable multipliers.
+
+Author: Divyansh Kumar Singh (DKS) · M.Tech Civil Engineering (Hydraulic), IIT Kanpur
+GitHub: https://github.com/DKS-MANAGER
+"""
+
 import os
 import yaml
 import joblib

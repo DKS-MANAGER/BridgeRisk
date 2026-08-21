@@ -1,5 +1,8 @@
 # Data Selection Documentation
 
+**Author:** Divyansh Kumar Singh (DKS) · M.Tech Civil Engineering (Hydraulic), IIT Kanpur  
+**GitHub:** [DKS-MANAGER](https://github.com/DKS-MANAGER)
+
 ## Selected State
 **Maine (State Code: 23)**
 

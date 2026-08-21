@@ -1,5 +1,8 @@
 # Deterministic Quickstart & Setup
 
+**Author:** Divyansh Kumar Singh (DKS) · M.Tech Civil Engineering (Hydraulic), IIT Kanpur  
+**GitHub:** [DKS-MANAGER](https://github.com/DKS-MANAGER)
+
 ## Prerequisite Matrix
 
 | Dependency | Minimum Version | Recommended | Validation Command |

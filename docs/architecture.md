@@ -1,5 +1,8 @@
 # Architecture & System Design
 
+**Author:** Divyansh Kumar Singh (DKS) · M.Tech Civil Engineering (Hydraulic), IIT Kanpur  
+**GitHub:** [DKS-MANAGER](https://github.com/DKS-MANAGER)
+
 ## Mission Statement
 One-year-ahead bridge deck condition prediction and maintenance prioritization using explainable XGBoost on official FHWA NBI data.
 

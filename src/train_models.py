@@ -1,3 +1,10 @@
+"""
+Train Logistic Regression, Random Forest, and XGBoost models.
+
+Author: Divyansh Kumar Singh (DKS) · M.Tech Civil Engineering (Hydraulic), IIT Kanpur
+GitHub: https://github.com/DKS-MANAGER
+"""
+
 import os
 import json
 import joblib

@@ -1,5 +1,8 @@
 # Limitations
 
+**Author:** Divyansh Kumar Singh (DKS) · M.Tech Civil Engineering (Hydraulic), IIT Kanpur  
+**GitHub:** [DKS-MANAGER](https://github.com/DKS-MANAGER)
+
 ## 1. NBI Condition Data Are Inspection Ratings, Not Direct Structural Measurements
 The NBI deck condition is a **subjective professional rating** (0–9), not a direct measurement of material strength, crack width, or load capacity. Two inspectors may rate the same bridge differently. The model learns patterns in these ratings, not in physical reality.
 

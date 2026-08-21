@@ -1,3 +1,10 @@
+"""
+Clean, normalize, and prepare NBI data for modeling.
+
+Author: Divyansh Kumar Singh (DKS) · M.Tech Civil Engineering (Hydraulic), IIT Kanpur
+GitHub: https://github.com/DKS-MANAGER
+"""
+
 import os
 import pandas as pd
 import numpy as np

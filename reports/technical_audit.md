@@ -3,6 +3,9 @@
 **Auditor:** Principal ML Engineer / Computational Civil Engineering Specialist  
 **Date:** 2026-08-21  
 **Repository:** `F:\bridgerisk`  
+**Author:** Divyansh Kumar Singh (DKS) · M.Tech Civil Engineering (Hydraulic), IIT Kanpur  
+**GitHub:** [DKS-MANAGER](https://github.com/DKS-MANAGER)
+
 **Dataset:** FHWA NBI Maine 2023–2025 (comma-delimited, 2,509 matched bridges)  
 **Objective:** One-year-ahead binary classification of poor deck condition (rating ≤ 4)
 

@@ -1,3 +1,7 @@
+# Maintenance priority configuration
+# Author: Divyansh Kumar Singh (DKS) · M.Tech Civil Engineering (Hydraulic), IIT Kanpur
+# GitHub: https://github.com/DKS-MANAGER
+
 condition_severity_multiplier:
   poor: 3.0
   fair: 2.0

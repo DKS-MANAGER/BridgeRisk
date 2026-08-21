@@ -1,5 +1,8 @@
 # API, CLI & Usage Reference
 
+**Author:** Divyansh Kumar Singh (DKS) · M.Tech Civil Engineering (Hydraulic), IIT Kanpur  
+**GitHub:** [DKS-MANAGER](https://github.com/DKS-MANAGER)
+
 ## Script Interface
 
 All scripts are executed via Python CLI with no required arguments. Optional flags are documented below.

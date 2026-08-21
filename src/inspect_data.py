@@ -1,3 +1,10 @@
+"""
+Inspect raw NBI data files and generate inspection reports.
+
+Author: Divyansh Kumar Singh (DKS) · M.Tech Civil Engineering (Hydraulic), IIT Kanpur
+GitHub: https://github.com/DKS-MANAGER
+"""
+
 import os
 import sys
 import pandas as pd

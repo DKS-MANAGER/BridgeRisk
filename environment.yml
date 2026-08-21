@@ -1,3 +1,7 @@
+# Conda environment specification
+# Author: Divyansh Kumar Singh (DKS) · M.Tech Civil Engineering (Hydraulic), IIT Kanpur
+# GitHub: https://github.com/DKS-MANAGER
+
 name: bridge_condition_xgboost
 channels:
   - defaults

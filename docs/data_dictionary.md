@@ -1,5 +1,8 @@
 # Data Dictionary
 
+**Author:** Divyansh Kumar Singh (DKS) · M.Tech Civil Engineering (Hydraulic), IIT Kanpur  
+**GitHub:** [DKS-MANAGER](https://github.com/DKS-MANAGER)
+
 ## Source
 Official FHWA National Bridge Inventory (NBI) comma-delimited files for Maine (State Code 23).
 

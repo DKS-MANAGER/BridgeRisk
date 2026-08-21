@@ -1,5 +1,8 @@
 # Feature Matrix & Performance Benchmarks
 
+**Author:** Divyansh Kumar Singh (DKS) · M.Tech Civil Engineering (Hydraulic), IIT Kanpur  
+**GitHub:** [DKS-MANAGER](https://github.com/DKS-MANAGER)
+
 ## Core Functional Modules
 
 | Module | Entry Point | Input | Output | Runtime | Dependencies |

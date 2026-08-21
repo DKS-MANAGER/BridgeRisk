@@ -1,3 +1,10 @@
+"""
+Generate SHAP explanations for XGBoost model predictions.
+
+Author: Divyansh Kumar Singh (DKS) · M.Tech Civil Engineering (Hydraulic), IIT Kanpur
+GitHub: https://github.com/DKS-MANAGER
+"""
+
 import os
 import joblib
 import pandas as pd
