@@ -1,3 +1,18 @@
+<div align="center">
+
+# Divyansh Kumar Singh (DKS)
+
+### CFD & Hydraulics · Sediment Transport · Water Resources · Stochastic Hydrology · Bridge Infrastructure ML
+
+📍 IIT Kanpur, Kanpur, UP, India &nbsp;|&nbsp; 📧 divyansh179@gmail.com
+
+[![GitHub followers](https://img.shields.io/github/followers/DKS-MANAGER?style=social)](https://github.com/DKS-MANAGER)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-0A66C2?style=social&logo=linkedin)](https://www.linkedin.com/in/divyansh-kumar-singh-92bb621b6)
+
+</div>
+
+---
+
 # Explainable XGBoost for One-Year-Ahead Bridge Condition Prediction and Maintenance Prioritization
 
 ## Civil-Engineering Problem
@@ -178,6 +193,6 @@ python src/prioritize_bridges.py
 ```
 
 ## Git Repository
-Initialized with Git. Use GitHub Desktop or command line to push to a remote repository.
+Initialized with Git by [DKS-MANAGER](https://github.com/DKS-MANAGER). Use GitHub Desktop or command line to push to a remote repository.
 
-**Author:** [DKS-MANAGER](https://github.com/DKS-MANAGER)
+**Author:** [DKS-MANAGER](https://github.com/DKS-MANAGER) · M.Tech Civil Engineering (Hydraulic), IIT Kanpur
