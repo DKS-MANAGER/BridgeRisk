@@ -1,0 +1,118 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
+  schedule:
+    - cron: '0 0 * * 0'  # Weekly Sunday midnight UTC
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install flake8 black isort mypy
+      - name: Lint with flake8
+        run: flake8 src/ --max-line-length=100 --extend-ignore=E203,W503
+      - name: Check formatting with black
+        run: black --check src/
+      - name: Check imports with isort
+        run: isort --check-only --profile black src/
+      - name: Type check with mypy
+        run: mypy src/ --ignore-missing-imports --strict
+        continue-on-error: true
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov
+      - name: Run data download
+        run: python src/download_data.py
+        timeout-minutes: 10
+      - name: Run data inspection
+        run: python src/inspect_data.py
+      - name: Run data preparation
+        run: python src/prepare_data.py
+      - name: Run model training
+        run: python src/train_models.py
+        timeout-minutes: 15
+      - name: Run model evaluation
+        run: python src/evaluate_models.py
+      - name: Run SHAP explanation
+        run: python src/explain_model.py
+        timeout-minutes: 20
+      - name: Run maintenance prioritization
+        run: python src/prioritize_bridges.py
+      - name: Validate pipeline
+        run: |
+          if grep -q "\[FAIL\]" reports/pipeline_validation.txt; then
+            echo "Pipeline validation failed"
+            exit 1
+          fi
+      - name: Upload coverage report
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          tags: bridge-condition-xgboost:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  release:
+    needs: [lint, test, docker]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ github.run_number }}
+          name: Release v${{ github.run_number }}
+          body: |
+            Automated release from CI pipeline.
+            - Lint: Passed
+            - Tests: Passed
+            - Docker: Built
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -97,6 +97,58 @@ Multipliers are defined in `configs/priority_config.yaml`. Priority classes are 
 ## Limitations
 See `docs/limitations.md`.
 
+## Future Work: Production Readiness
+
+This project is a **research prototype** designed for academic demonstration. The following steps would be required to transition it to a production system used by a state DOT or bridge management agency:
+
+### 1. Data Pipeline & Automation
+- **Automated data ingestion:** Scheduled downloads of annual NBI data with schema validation and anomaly detection (e.g., sudden drops in bridge counts, new condition codes).
+- **Data quality monitoring:** Dashboards tracking missing-value rates, duplicate records, and ID-matching success across years.
+- **Versioned data lake:** Store raw and processed data in a versioned format (e.g., Delta Lake, Iceberg) with data contracts and schema evolution tracking.
+
+### 2. Model Robustness & Validation
+- **Temporal cross-validation:** Implement rolling-origin CV (train on 2023→test 2024, train on 2023+2024→test 2025) to estimate out-of-time performance stability.
+- **Uncertainty quantification:** Add bootstrap confidence intervals, prediction intervals, or Bayesian neural network alternatives so decision-makers understand risk margins.
+- **Probability calibration:** Apply Platt scaling or isotonic regression and report calibration error (ECE, MCE) to ensure predicted probabilities match empirical frequencies.
+- **Spatial validation:** Evaluate performance by county, route type, and climate zone to detect geographic bias.
+
+### 3. Model Architecture Enhancements
+- **Multi-state training:** Extend beyond Maine to 5–10 diverse states (different climates, traffic volumes, bridge inventories) to improve generalization.
+- **Temporal models:** Incorporate LSTM or Transformer architectures to capture multi-year deterioration sequences, not just single-year snapshots.
+- **Physics-informed constraints:** Enforce physical bounds on deterioration rates (e.g., a bridge cannot drop from condition 9 to ≤4 in one year without catastrophic event flags).
+- **Ensemble methods:** Combine XGBoost with survival analysis (Cox proportional hazards, random survival forests) to predict time-to-poor-condition rather than binary one-year-ahead classification.
+
+### 4. Feature Engineering & Data Enrichment
+- **Environmental data:** Integrate freeze-thaw cycle counts, precipitation, salinity (coastal corrosion), and temperature extremes from NOAA or PRISM datasets.
+- **Maintenance history:** Link to state DOT work-order databases to distinguish "natural deterioration" from "post-maintenance jumps" in condition.
+- **Traffic loading spectra:** Replace scalar ADT with WIM (Weigh-In-Motion) data for actual load spectra and fatigue accumulation.
+- **Material-specific models:** Train separate models for concrete, steel, and timber bridges, as deterioration mechanisms differ fundamentally.
+
+### 5. Explainability & Civil Engineering Validation
+- **Domain expert validation:** Present SHAP explanations to certified bridge inspectors and ask whether the model's "reasons" align with engineering judgment.
+- **Counterfactual analysis:** Generate "what-if" scenarios (e.g., "If this bridge were 10 years younger, its predicted probability drops from 78% to 32%").
+- **Failure mode attribution:** Link SHAP features to specific deterioration mechanisms (corrosion, fatigue, delamination, scour) rather than generic NBI codes.
+
+### 6. Maintenance Decision Support
+- **Cost-benefit optimization:** Replace heuristic priority multipliers with a constrained optimization model that maximizes "years of service restored per dollar" under budget constraints.
+- **Remaining service life (RSL) integration:** Calibrate model outputs against existing RSL estimates from state BMS software.
+- **Multi-criteria decision analysis:** Incorporate agency priorities (political, economic, social) via Analytic Hierarchy Process (AHP) or PROMETHEE methods.
+- **Interactive dashboard:** Deploy a web interface (Streamlit, Plotly Dash) allowing inspectors to query bridges, adjust thresholds, and simulate budget scenarios.
+
+### 7. Deployment & Governance
+- **CI/CD for ML:** Automated retraining pipelines triggered when new inspection data arrives (annual or bi-annual).
+- **Model monitoring:** Track prediction drift, feature drift, and performance degradation over time. Alert when model accuracy drops below acceptable thresholds.
+- **Human-in-the-loop:** Design workflow where model high-priority flags are reviewed by inspectors before entering the official maintenance backlog.
+- **Audit trail:** Log every prediction, feature value, and SHAP explanation for regulatory compliance and liability protection.
+
+### 8. Regulatory & Standards Compliance
+- **FHWA compliance:** Align with 23 CFR 490 Subpart D performance measures and emerging SNBI (Specifications for the NBI) data standards.
+- **State BMS integration:** Export results in formats compatible with existing Bridge Management Systems (e.g., AASHTOWare BrM, Pontis).
+- **Documentation standards:** Produce a formal Engineering Analysis Report following state DOT documentation guidelines.
+
+## Current Project Status
+This prototype demonstrates feasibility and methodology. It is **not** intended for direct maintenance decision-making without the validation, calibration, and governance steps outlined above.
+
 ## How to Run the Project From the Beginning
 ```bash
 # 1. Create environment
