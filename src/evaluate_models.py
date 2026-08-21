@@ -38,11 +38,20 @@ def load_data_and_models():
 def find_best_threshold(y_true, y_proba, target_recall=0.80):
     precision, recall, thresholds = precision_recall_curve(y_true, y_proba)
     best_thresh = 0.5
+    best_f1 = -1
+    found = False
     for i, thresh in enumerate(thresholds):
         if recall[i] >= target_recall:
-            best_thresh = thresh
-            break
-    return best_thresh
+            p = precision[i]
+            r = recall[i]
+            f1 = 2 * p * r / (p + r) if (p + r) > 0 else 0
+            if f1 > best_f1:
+                best_f1 = f1
+                best_thresh = thresh
+                found = True
+    if not found:
+        best_thresh = 0.5
+    return max(best_thresh, 0.01)
 
 
 def evaluate_model(model, X, y, threshold=0.5, model_name=""):
@@ -77,7 +86,7 @@ def main():
     print("Loading data and models...")
     test_df, preprocessor, models = load_data_and_models()
     
-    feature_cols = [c for c in test_df.columns if c not in ["bridge_id", "target_deck_poor_next_year", "target_deck_cond_2025", "STATE_CODE_001", "STRUCTURE_NUMBER_008", "bridge_age"]]
+    feature_cols = [c for c in test_df.columns if c not in ["bridge_id", "target_deck_poor_next_year", "target_deck_cond_2025", "STATE_CODE_001", "STRUCTURE_NUMBER_008"]]
     X_test = preprocessor.transform(test_df[feature_cols])
     y_test = test_df["target_deck_poor_next_year"]
     

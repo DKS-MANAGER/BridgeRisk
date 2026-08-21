@@ -75,7 +75,7 @@ def main():
     preprocessor = joblib.load(os.path.join(MODELS_DIR, "preprocessing_pipeline.joblib"))
     test_df = pd.read_parquet(os.path.join(PROCESSED_DIR, "test_2024_2025.parquet"))
     
-    feature_cols = [c for c in test_df.columns if c not in ["bridge_id", "target_deck_poor_next_year", "target_deck_cond_2025", "STATE_CODE_001", "STRUCTURE_NUMBER_008", "bridge_age"]]
+    feature_cols = [c for c in test_df.columns if c not in ["bridge_id", "target_deck_poor_next_year", "target_deck_cond_2025", "STATE_CODE_001", "STRUCTURE_NUMBER_008"]]
     X_test = preprocessor.transform(test_df[feature_cols])
     
     print("Predicting probabilities...")
