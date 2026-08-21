@@ -1,0 +1,36 @@
+# Data and raw downloads
+data/raw/downloads/
+data/raw/extracted/
+
+# Models and binaries
+models/
+*.joblib
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Temporary files
+logs/
+*.log
+temporary files/
+temp/
+
+# IDE
+.vscode/
+.idea/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Large data files (do not commit raw NBI data)
+*.zip
+*.7z
+*.txt

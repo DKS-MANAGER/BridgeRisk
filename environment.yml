@@ -1,0 +1,19 @@
+name: bridge_condition_xgboost
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pandas
+  - numpy
+  - scikit-learn
+  - xgboost
+  - shap
+  - matplotlib
+  - seaborn
+  - joblib
+  - pyyaml
+  - requests
+  - pip
+  - pip:
+    - -r requirements.txt
