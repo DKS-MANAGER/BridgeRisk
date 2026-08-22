@@ -1,3 +1,9 @@
+---
+title: "BridgeRisk: Explainable XGBoost for One-Year-Ahead Bridge Condition Prediction"
+description: "FHWA NBI bridge deck deterioration prediction and maintenance prioritization using XGBoost + SHAP. Chronological train/test split (2023→2024→2025), Maine state data."
+tags: [civil-engineering, bridge-management, infrastructure, nbi-data, xgboost, shap, maintenance-prioritization, fhwa]
+---
+
 <div align="center">
 
 # Divyansh Kumar Singh (DKS)
@@ -84,6 +90,46 @@ No random row splitting is used for the main experiment.
 3. **Random Forest** (ensemble of decision trees)
 4. **XGBoost Classifier** (gradient-boosted trees, main model)
 
+## Model Performance (2024→2025 Test Data)
+
+| Model | Accuracy | Precision | Recall | F1 | ROC-AUC | PR-AUC | False Negatives | FNR |
+|:---|:---|:---|:---|:---|:---|:---|:---|:---|
+| Majority Baseline | 0.908 | 0.000 | 0.000 | 0.000 | 0.500 | 0.092 | 230 | 100.0% |
+| Logistic Regression | 0.886 | 0.442 | 0.930 | 0.599 | 0.963 | 0.742 | 16 | 7.0% |
+| Random Forest | 0.978 | 0.854 | 0.917 | 0.885 | 0.980 | 0.846 | 19 | 8.3% |
+| **XGBoost** (threshold=0.846) | **0.981** | **0.882** | **0.913** | **0.897** | **0.983** | **0.854** | **20** | **8.7%** |
+
+> **Note:** XGBoost threshold was selected to prioritize recall (≥80% on training data). False Negative Rate (FNR) is the critical safety metric — it measures bridges the model missed that became poor in 2025.
+
+## Key Visualizations
+
+### ROC Curves
+![ROC Curve](figures/roc_curve.png)
+
+### Precision-Recall Curves
+![Precision-Recall Curve](figures/precision_recall_curve.png)
+
+### Confusion Matrix (XGBoost)
+![Confusion Matrix](figures/confusion_matrix.png)
+
+### SHAP Feature Importance
+![SHAP Feature Importance](figures/shap_bar.png)
+
+### SHAP Summary Plot
+![SHAP Summary](figures/shap_summary.png)
+
+### SHAP High-Risk Bridge Explanation
+![SHAP High-Risk](figures/shap_high_risk.png)
+
+### SHAP Low-Risk Bridge Explanation
+![SHAP Low-Risk](figures/shap_low_risk.png)
+
+### Predicted Risk Distribution by Priority Class
+![Predicted Risk Distribution](figures/predicted_risk_distribution.png)
+
+### Top 20 Maintenance Priority Bridges (2025)
+![Top 20 Priority Bridges](figures/top20_priority.png)
+
 ## Evaluation Metrics
 - **Accuracy:** Overall correctness
 - **Precision:** Of bridges predicted poor, how many actually became poor?
@@ -165,6 +211,7 @@ This project is a **research prototype** designed for academic demonstration. Th
 This prototype demonstrates feasibility and methodology. It is **not** intended for direct maintenance decision-making without the validation, calibration, and governance steps outlined above.
 
 ## How to Run the Project From the Beginning
+
 ```bash
 # 1. Create environment
 conda env create -f environment.yml
