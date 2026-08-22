@@ -5,11 +5,12 @@ Author: Divyansh Kumar Singh (DKS) · M.Tech Civil Engineering (Hydraulic), IIT 
 GitHub: https://github.com/DKS-MANAGER
 """
 
-import os
 import hashlib
-import requests
-import zipfile
+import os
 import shutil
+import zipfile
+
+import requests
 
 STATE = "ME"
 BASE_URL = "https://www.fhwa.dot.gov/bridge/nbi"
@@ -58,25 +59,24 @@ def download_zip(file_info):
     zip_filename = file_info["zip_filename"]
     inner_filename = file_info["inner_filename"]
     final_filename = file_info["final_filename"]
-    
+
     download_path = os.path.join(DOWNLOAD_DIR, zip_filename)
-    extract_path = os.path.join(EXTRACT_DIR, str(year), final_filename)
-    
+
     print(f"\n--- {year} Maine NBI Data (ZIP) ---")
     print(f"Disclaimer URL: {disclaimer_url}")
     print(f"ZIP URL: {zip_url}")
-    
+
     session = requests.Session()
     print("  Accessing disclaimer page to obtain session cookie...")
     resp = session.get(disclaimer_url, timeout=60)
     if resp.status_code != 200:
         raise RuntimeError(f"Failed to access disclaimer page: HTTP {resp.status_code}")
-    
-    print(f"  Downloading ZIP...")
+
+    print("  Downloading ZIP...")
     resp = session.get(zip_url, stream=True, timeout=300)
     if resp.status_code != 200:
         raise RuntimeError(f"Failed to download ZIP: HTTP {resp.status_code}")
-    
+
     os.makedirs(os.path.dirname(download_path), exist_ok=True)
     total = 0
     with open(download_path, "wb") as f:
@@ -84,24 +84,24 @@ def download_zip(file_info):
             if chunk:
                 f.write(chunk)
                 total += len(chunk)
-    
+
     size_mb = total / (1024 * 1024)
     checksum = sha256_file(download_path)
     print(f"  Saved ZIP to: {download_path}")
     print(f"  Size: {size_mb:.2f} MB")
     print(f"  SHA256: {checksum}")
-    
+
     print(f"  Extracting {inner_filename}...")
-    with zipfile.ZipFile(download_path, 'r') as z:
+    with zipfile.ZipFile(download_path, "r") as z:
         if inner_filename not in z.namelist():
             raise RuntimeError(f"{inner_filename} not found in ZIP")
         z.extract(inner_filename, os.path.join(EXTRACT_DIR, str(year)))
-    
+
     extracted_file = os.path.join(EXTRACT_DIR, str(year), inner_filename)
     final_file = os.path.join(EXTRACT_DIR, str(year), final_filename)
     if extracted_file != final_file:
         shutil.move(extracted_file, final_file)
-    
+
     print(f"  Extracted to: {final_file}")
     return download_path, final_file
 
@@ -111,25 +111,25 @@ def download_delimited(file_info):
     disclaimer_url = file_info["disclaimer_url"]
     data_url = file_info["data_url"]
     filename = file_info["filename"]
-    
+
     download_path = os.path.join(DOWNLOAD_DIR, filename)
     extract_path = os.path.join(EXTRACT_DIR, str(year), filename)
-    
+
     print(f"\n--- {year} Maine NBI Data (Delimited) ---")
     print(f"Disclaimer URL: {disclaimer_url}")
     print(f"Data URL: {data_url}")
-    
+
     session = requests.Session()
     print("  Accessing disclaimer page to obtain session cookie...")
     resp = session.get(disclaimer_url, timeout=60)
     if resp.status_code != 200:
         raise RuntimeError(f"Failed to access disclaimer page: HTTP {resp.status_code}")
-    
-    print(f"  Downloading data...")
+
+    print("  Downloading data...")
     resp = session.get(data_url, stream=True, timeout=120)
     if resp.status_code != 200:
         raise RuntimeError(f"Failed to download data: HTTP {resp.status_code}")
-    
+
     os.makedirs(os.path.dirname(download_path), exist_ok=True)
     total = 0
     with open(download_path, "wb") as f:
@@ -137,27 +137,27 @@ def download_delimited(file_info):
             if chunk:
                 f.write(chunk)
                 total += len(chunk)
-    
+
     size_mb = total / (1024 * 1024)
     checksum = sha256_file(download_path)
     print(f"  Saved to: {download_path}")
     print(f"  Size: {size_mb:.2f} MB")
     print(f"  SHA256: {checksum}")
-    
+
     os.makedirs(os.path.dirname(extract_path), exist_ok=True)
     shutil.copy2(download_path, extract_path)
     print(f"  Extracted to: {extract_path}")
-    
+
     return download_path, extract_path
 
 
 def main():
     os.makedirs(DOWNLOAD_DIR, exist_ok=True)
     os.makedirs(EXTRACT_DIR, exist_ok=True)
-    
+
     for file_info in FILES:
         year = file_info["year"]
-        
+
         if "zip_url" in file_info:
             download_path = os.path.join(DOWNLOAD_DIR, file_info["zip_filename"])
             if os.path.exists(download_path):
