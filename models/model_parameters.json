@@ -1,0 +1,26 @@
+{
+  "xgboost": {
+    "n_estimators": 300,
+    "max_depth": 4,
+    "learning_rate": 0.05,
+    "subsample": 0.8,
+    "colsample_bytree": 0.8,
+    "random_state": 42,
+    "objective": "binary:logistic",
+    "eval_metric": "logloss",
+    "scale_pos_weight": 18.126404494382022,
+    "n_jobs": 4
+  },
+  "logistic_regression": {
+    "max_iter": 1000,
+    "random_state": 42,
+    "class_weight": "balanced"
+  },
+  "random_forest": {
+    "n_estimators": 300,
+    "max_depth": 10,
+    "random_state": 42,
+    "class_weight": "balanced",
+    "n_jobs": 4
+  }
+}

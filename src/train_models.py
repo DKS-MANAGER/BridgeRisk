@@ -15,7 +15,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OneHotEncoder
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from xgboost import XGBClassifier
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -59,7 +59,7 @@ FEATURES = {
 
 
 def load_data():
-    train_path = os.path.join(PROCESSED_DIR, "train_2023_2024.parquet")
+    train_path = os.path.join(PROCESSED_DIR, "train_2021_2024.parquet")
     test_path = os.path.join(PROCESSED_DIR, "test_2024_2025.parquet")
 
     train_df = pd.read_parquet(train_path)
@@ -72,6 +72,7 @@ def build_preprocessor():
     numerical_transformer = Pipeline(
         steps=[
             ("imputer", SimpleImputer(strategy="median")),
+            ("scaler", StandardScaler()),
         ]
     )
 
@@ -119,7 +120,6 @@ def get_model_params():
             "max_iter": 1000,
             "random_state": 42,
             "class_weight": "balanced",
-            "n_jobs": 4,
         },
         "random_forest": {
             "n_estimators": 300,

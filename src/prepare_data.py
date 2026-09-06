@@ -1,5 +1,5 @@
 """
-Clean, normalize, and prepare NBI data for modeling.
+Clean, normalize, and prepare NBI data for Maine (ME), Hawaii (HI), and Delaware (DE) (2021–2025).
 
 Author: Divyansh Kumar Singh (DKS) · M.Tech Civil Engineering (Hydraulic), IIT Kanpur
 GitHub: https://github.com/DKS-MANAGER
@@ -16,8 +16,8 @@ EXTRACT_DIR = os.path.join(BASE_DIR, "data", "raw", "extracted")
 PROCESSED_DIR = os.path.join(BASE_DIR, "data", "processed")
 REPORTS_DIR = os.path.join(BASE_DIR, "reports")
 
-YEARS = [2023, 2024, 2025]
-FILE_MAP = {2023: "ME23.txt", 2024: "ME24.txt", 2025: "ME25.txt"}
+STATES = ["ME", "HI", "DE"]
+YEARS = [2021, 2022, 2023, 2024, 2025]
 
 CONDITION_COLS = [
     "DECK_COND_058",
@@ -61,81 +61,60 @@ CATEGORICAL_COLS = [
     "SCOUR_CRITICAL_113",
     "WATERWAY_EVAL_071",
     "FUNCTIONAL_CLASS_026",
-    "HIGHWAY_SYSTEM_104",
-    "OPEN_CLOSED_POSTED_041",
-    "SERVICE_ON_042A",
-    "SERVICE_UND_042B",
-    "DECK_STRUCTURE_TYPE_107",
-    "SURFACE_TYPE_108A",
-    "MEMBRANE_TYPE_108B",
-    "DECK_PROTECTION_108C",
+    "OWNER_027",
+    "LANES_ON_STRUCT",
 ]
 
-MISSING_CODES = ["N", "n", "NA", "na", "", " "]
 
+def load_state_year(state, year):
+    filename = f"{state}{str(year)[-2:]}.txt"
+    filepath = os.path.join(EXTRACT_DIR, str(year), filename)
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(f"Missing file for {state} year {year}: {filepath}")
 
-def load_year(year):
-    path = os.path.join(EXTRACT_DIR, str(year), FILE_MAP[year])
-    df = pd.read_csv(path, dtype=str, low_memory=False)
+    # FHWA NBI files are typically comma-delimited or fixed-width depending on year
+    try:
+        df = pd.read_csv(filepath, low_memory=False, encoding="utf-8")
+    except Exception:
+        df = pd.read_csv(filepath, low_memory=False, encoding="latin1")
+
+    # Clean column names (strip whitespace)
+    df.columns = df.columns.str.strip()
     return df
 
 
-def clean_structure_number(val):
-    if pd.isna(val):
-        return val
-    return str(val).strip()
+def prepare_state_year(df, state, year):
+    # Ensure bridge_id exists
+    if "STRUCTURE_NUMBER_008" in df.columns:
+        df["bridge_id"] = state + "_" + df["STRUCTURE_NUMBER_008"].astype(str).str.strip()
+    elif "bridge_id" not in df.columns:
+        raise ValueError(f"Structure number column not found in {state} {year}")
 
+    orig_count = len(df)
+    df = df.drop_duplicates(subset=["bridge_id"]).copy()
+    after_dedup = len(df)
+    dups_removed = orig_count - after_dedup
 
-def safe_numeric(val):
-    if pd.isna(val):
-        return np.nan
-    val = str(val).strip()
-    if val in MISSING_CODES:
-        return np.nan
-    try:
-        return float(val)
-    except ValueError:
-        return np.nan
-
-
-def prepare_year(df, year):
-    df = df.copy()
-    original_count = len(df)
-
-    df["STATE_CODE_001"] = df["STATE_CODE_001"].astype(str).str.strip()
-    df["STRUCTURE_NUMBER_008"] = df["STRUCTURE_NUMBER_008"].apply(
-        clean_structure_number
-    )
-    df["bridge_id"] = df["STATE_CODE_001"] + "_" + df["STRUCTURE_NUMBER_008"]
-
-    for col in CONDITION_COLS:
-        if col in df.columns:
-            df[col] = df[col].apply(
-                lambda x: np.nan if str(x).strip().upper() in ["N", ""] else x
-            )
-
+    # Numeric conversion
     for col in NUMERIC_COLS:
         if col in df.columns:
-            df[col] = df[col].apply(safe_numeric)
+            df[col] = pd.to_numeric(df[col], errors="coerce")
 
-    for col in CATEGORICAL_COLS:
+    # Condition conversion
+    for col in CONDITION_COLS:
         if col in df.columns:
-            df[col] = df[col].apply(
-                lambda x: (
-                    np.nan
-                    if str(x).strip().upper() in MISSING_CODES
-                    else str(x).strip()
-                )
-            )
+            df[col] = pd.to_numeric(df[col], errors="coerce")
 
-    df["bridge_age"] = year - pd.to_numeric(df["YEAR_BUILT_027"], errors="coerce")
-    df["inspection_year"] = year
+    # Feature engineering: bridge age
+    if "YEAR_BUILT_027" in df.columns:
+        df["bridge_age"] = year - df["YEAR_BUILT_027"]
+        df.loc[df["bridge_age"] < 0, "bridge_age"] = np.nan
 
-    dup_count = df["bridge_id"].duplicated().sum()
-    df = df.drop_duplicates(subset=["bridge_id"], keep="first")
-    after_dedup = len(df)
+    # Deck area computation if missing
+    if "DECK_AREA" not in df.columns and "STRUCTURE_LEN_MT_049" in df.columns and "DECK_WIDTH_MT_052" in df.columns:
+        df["DECK_AREA"] = df["STRUCTURE_LEN_MT_049"] * df["DECK_WIDTH_MT_052"]
 
-    return df, original_count, after_dedup, dup_count
+    return df, orig_count, after_dedup, dups_removed
 
 
 def main():
@@ -143,96 +122,91 @@ def main():
     os.makedirs(REPORTS_DIR, exist_ok=True)
 
     report_lines = []
-    report_lines.append("=" * 70)
-    report_lines.append("DATA PREPARATION REPORT")
+    report_lines.append("======================================================================")
+    report_lines.append(f"MULTI-STATE DATA PREPARATION REPORT (ME, HI, DE: 2021–2025)")
     report_lines.append(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    report_lines.append("=" * 70)
+    report_lines.append("======================================================================\n")
 
-    dfs = {}
-    for year in YEARS:
-        df = load_year(year)
-        df, orig, after, dups = prepare_year(df, year)
-        dfs[year] = df
+    all_state_trains = []
+    all_state_tests = []
 
-        report_lines.append(f"\nYear {year}:")
-        report_lines.append(f"  Original records: {orig}")
-        report_lines.append(f"  After deduplication: {after}")
-        report_lines.append(f"  Duplicates removed: {dups}")
-        report_lines.append("\nMissing condition values:")
-        for col in CONDITION_COLS:
-            if col in df.columns:
-                missing = df[col].isna().sum()
-                report_lines.append(
-                    f"    {col}: {missing} ({missing/len(df)*100:.1f}%)"
+    for state in STATES:
+        report_lines.append(f"\n=================== STATE: {state} ===================")
+        dfs = {}
+        for year in YEARS:
+            try:
+                df = load_state_year(state, year)
+                df, orig, after, dups = prepare_state_year(df, state, year)
+                dfs[year] = df
+
+                report_lines.append(f"\nYear {year}:")
+                report_lines.append(f"  Original records: {orig}")
+                report_lines.append(f"  After deduplication: {after}")
+                report_lines.append(f"  Duplicates removed: {dups}")
+            except Exception as e:
+                report_lines.append(f"\nYear {year}: Error loading - {e}")
+
+        # Check common IDs across years for training (2021, 2022, 2023, 2024) and test (2024, 2025)
+        available_train_years = [y for y in [2021, 2022, 2023, 2024] if y in dfs]
+        if 2024 in dfs and 2025 in dfs:
+            test_ids = set(dfs[2024]["bridge_id"]) & set(dfs[2025]["bridge_id"])
+            test_df = dfs[2024][dfs[2024]["bridge_id"].isin(test_ids)].copy()
+            target_2025 = dfs[2025][["bridge_id", "DECK_COND_058"]].copy()
+            target_2025.columns = ["bridge_id", "target_deck_cond_next"]
+            test_df = test_df.merge(target_2025, on="bridge_id", how="inner")
+            test_df["target_deck_poor_next_year"] = test_df["target_deck_cond_next"].apply(
+                lambda x: 1 if pd.notna(x) and x <= 4 else 0
+            )
+            test_df["state"] = state
+            all_state_tests.append(test_df)
+
+        # Build training transitions (2021->2022, 2022->2023, 2023->2024)
+        transitions = [(2021, 2022), (2022, 2023), (2023, 2024)]
+        for y_curr, y_next in transitions:
+            if y_curr in dfs and y_next in dfs:
+                common_ids = set(dfs[y_curr]["bridge_id"]) & set(dfs[y_next]["bridge_id"])
+                t_df = dfs[y_curr][dfs[y_curr]["bridge_id"].isin(common_ids)].copy()
+                t_next = dfs[y_next][["bridge_id", "DECK_COND_058"]].copy()
+                t_next.columns = ["bridge_id", "target_deck_cond_next"]
+                t_df = t_df.merge(t_next, on="bridge_id", how="inner")
+                t_df["target_deck_poor_next_year"] = t_df["target_deck_cond_next"].apply(
+                    lambda x: 1 if pd.notna(x) and x <= 4 else 0
                 )
+                t_df["state"] = state
+                all_state_trains.append(t_df)
 
-    ids_2023 = set(dfs[2023]["bridge_id"])
-    ids_2024 = set(dfs[2024]["bridge_id"])
-    ids_2025 = set(dfs[2025]["bridge_id"])
+    if all_state_trains:
+        final_train_df = pd.concat(all_state_trains, ignore_index=True)
+    else:
+        final_train_df = pd.DataFrame()
 
-    common_ids = ids_2023 & ids_2024 & ids_2025
+    if all_state_tests:
+        final_test_df = pd.concat(all_state_tests, ignore_index=True)
+    else:
+        final_test_df = pd.DataFrame()
 
-    report_lines.append("\nCross-year matching:")
-    report_lines.append(f"  Bridges in all three years: {len(common_ids)}")
+    for df_obj in [final_train_df, final_test_df]:
+        if not df_obj.empty:
+            for col in df_obj.select_dtypes(include=["object"]).columns:
+                df_obj[col] = df_obj[col].astype(str)
 
-    train_df = dfs[2023][dfs[2023]["bridge_id"].isin(common_ids)].copy()
-    target_2024 = dfs[2024][["bridge_id", "DECK_COND_058"]].copy()
-    target_2024.columns = ["bridge_id", "target_deck_cond_2024"]
-
-    test_df = dfs[2024][dfs[2024]["bridge_id"].isin(common_ids)].copy()
-    target_2025 = dfs[2025][["bridge_id", "DECK_COND_058"]].copy()
-    target_2025.columns = ["bridge_id", "target_deck_cond_2025"]
-
-    train_df = train_df.merge(target_2024, on="bridge_id", how="inner")
-    test_df = test_df.merge(target_2025, on="bridge_id", how="inner")
-
-    train_df["target_deck_poor_next_year"] = train_df["target_deck_cond_2024"].apply(
-        lambda x: (
-            1
-            if pd.notna(x) and str(x).strip().isdigit() and int(str(x).strip()) <= 4
-            else 0
-        )
-    )
-    test_df["target_deck_poor_next_year"] = test_df["target_deck_cond_2025"].apply(
-        lambda x: (
-            1
-            if pd.notna(x) and str(x).strip().isdigit() and int(str(x).strip()) <= 4
-            else 0
-        )
-    )
-
-    report_lines.append("\nTraining set (2023 -> 2024):")
-    report_lines.append(f"  Records: {len(train_df)}")
-    report_lines.append(
-        "  Poor deck next year: "
-        f"{train_df['target_deck_poor_next_year'].sum()} "
-        f"({train_df['target_deck_poor_next_year'].mean()*100:.1f}%)"
-    )
-
-    report_lines.append("\nTesting set (2024 -> 2025):")
-    report_lines.append(f"  Records: {len(test_df)}")
-    report_lines.append(
-        "  Poor deck next year: "
-        f"{test_df['target_deck_poor_next_year'].sum()} "
-        f"({test_df['target_deck_poor_next_year'].mean()*100:.1f}%)"
-    )
-
-    train_path = os.path.join(PROCESSED_DIR, "train_2023_2024.parquet")
+    train_path = os.path.join(PROCESSED_DIR, "train_2021_2024.parquet")
     test_path = os.path.join(PROCESSED_DIR, "test_2024_2025.parquet")
 
-    train_df.to_parquet(train_path, index=False)
-    test_df.to_parquet(test_path, index=False)
+    final_train_df.to_parquet(train_path, index=False)
+    final_test_df.to_parquet(test_path, index=False)
 
-    report_lines.append("\nSaved:")
-    report_lines.append(f"  Training: {train_path}")
-    report_lines.append(f"  Testing: {test_path}")
+    report_lines.append(f"\nSaved Training Set (2021–2024 transitions): {train_path} ({len(final_train_df)} records)")
+    report_lines.append(f"Saved Testing Set (2024–2025): {test_path} ({len(final_test_df)} records)")
 
     report_text = "\n".join(report_lines)
-    with open(
-        os.path.join(REPORTS_DIR, "data_preparation.txt"), "w", encoding="utf-8"
-    ) as f:
-        f.write(report_text)
     print(report_text)
+
+    os.makedirs(REPORTS_DIR, exist_ok=True)
+    with open(os.path.join(REPORTS_DIR, "matching_counts.csv"), "w", encoding="utf-8") as f:
+        f.write("metric,value\n")
+        f.write(f"train_records,{len(final_train_df)}\n")
+        f.write(f"test_records,{len(final_test_df)}\n")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,13 @@
+# Python dependencies for bridge condition prediction project
+# Author: Divyansh Kumar Singh (DKS) · M.Tech Civil Engineering (Hydraulic), IIT Kanpur
+# GitHub: https://github.com/DKS-MANAGER
+
+pandas
+numpy
+scikit-learn
+xgboost
+shap
+matplotlib
+seaborn
+joblib
+requests

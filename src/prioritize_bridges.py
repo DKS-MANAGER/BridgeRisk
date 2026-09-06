@@ -1,36 +1,37 @@
 """
-Rank bridges by maintenance priority using model predictions and configurable multipliers.
+Rank bridges by maintenance priority using model predictions and engineering multipliers.
+
+Priority Score = Predicted Probability × Condition Multiplier × Traffic Multiplier × Scour Multiplier
 
 Author: Divyansh Kumar Singh (DKS) · M.Tech Civil Engineering (Hydraulic), IIT Kanpur
 GitHub: https://github.com/DKS-MANAGER
 """
 
 import os
+from pathlib import Path
 
 import joblib
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import yaml
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CONFIG_PATH = os.path.join(BASE_DIR, "configs", "priority_config.yaml")
-MODELS_DIR = os.path.join(BASE_DIR, "models")
-PROCESSED_DIR = os.path.join(BASE_DIR, "data", "processed")
-REPORTS_DIR = os.path.join(BASE_DIR, "reports")
-FIGURES_DIR = os.path.join(BASE_DIR, "figures")
+BASE_DIR = Path(__file__).resolve().parent.parent
+MODELS_DIR = BASE_DIR / "models"
+PROCESSED_DIR = BASE_DIR / "data" / "processed"
+REPORTS_DIR = BASE_DIR / "reports"
+FIGURES_DIR = BASE_DIR / "figures"
 
-
-def load_config():
-    with open(CONFIG_PATH, "r") as f:
-        return yaml.safe_load(f)
+# Priority thresholds: Top 10% High priority, next 20% Medium priority, remaining 70% Low
+HIGH_PRIORITY_FRACTION = 0.10
+MEDIUM_PRIORITY_FRACTION = 0.20
 
 
 def condition_severity_multiplier(deck_cond):
+    """Bridges with deck condition rating <= 4 (Poor) receive highest maintenance weight."""
     if pd.isna(deck_cond):
         return 1.0
     try:
-        val = int(float(str(deck_cond).strip()))
+        val = float(str(deck_cond).strip())
     except ValueError:
         return 1.0
     if val <= 4:
@@ -42,6 +43,7 @@ def condition_severity_multiplier(deck_cond):
 
 
 def traffic_multiplier(adt):
+    """Bridges carrying heavy average daily traffic receive higher priority due to consequence of closure."""
     if pd.isna(adt):
         return 1.0
     try:
@@ -57,32 +59,35 @@ def traffic_multiplier(adt):
 
 
 def scour_multiplier(scour):
+    """Bridges flagged as scour critical (NBI item 113 in 1, 2, or T) receive double weight."""
     if pd.isna(scour):
         return 1.0
     val = str(scour).strip().upper()
-    if val in ["0", "N", ""]:
-        return 1.0
-    elif val == "U":
-        return 1.0
-    elif val in ["1", "2", "T"]:
+    if val in ["1", "2", "T"]:
         return 2.0
-    else:
-        return 1.0
+    return 1.0
+
+
+def calculate_overall_condition(row):
+    """Lowest rating among deck, superstructure, and substructure."""
+    vals = []
+    for col in ["DECK_COND_058", "SUPERSTRUCTURE_COND_059", "SUBSTRUCTURE_COND_060"]:
+        if col in row and pd.notna(row[col]):
+            try:
+                vals.append(float(str(row[col]).strip()))
+            except ValueError:
+                pass
+    return min(vals) if vals else np.nan
 
 
 def main():
-    os.makedirs(REPORTS_DIR, exist_ok=True)
-    os.makedirs(FIGURES_DIR, exist_ok=True)
-
-    config = load_config()
-    print("Loaded priority config.")
+    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    FIGURES_DIR.mkdir(parents=True, exist_ok=True)
 
     print("Loading model and test data...")
-    model = joblib.load(os.path.join(MODELS_DIR, "xgboost_model.joblib"))
-    preprocessor = joblib.load(
-        os.path.join(MODELS_DIR, "preprocessing_pipeline.joblib")
-    )
-    test_df = pd.read_parquet(os.path.join(PROCESSED_DIR, "test_2024_2025.parquet"))
+    model = joblib.load(MODELS_DIR / "xgboost_model.joblib")
+    preprocessor = joblib.load(MODELS_DIR / "preprocessing_pipeline.joblib")
+    test_df = pd.read_parquet(PROCESSED_DIR / "test_2024_2025.parquet")
 
     feature_cols = [
         c
@@ -90,7 +95,9 @@ def main():
         if c
         not in [
             "bridge_id",
+            "state",
             "target_deck_poor_next_year",
+            "target_deck_cond_next",
             "target_deck_cond_2025",
             "STATE_CODE_001",
             "STRUCTURE_NUMBER_008",
@@ -98,64 +105,37 @@ def main():
     ]
     X_test = preprocessor.transform(test_df[feature_cols])
 
-    print("Predicting probabilities...")
-    y_proba = model.predict_proba(X_test)[:, 1]
-    test_df["predicted_probability"] = y_proba
+    print("Predicting probabilities of deterioration to poor condition...")
+    test_df["predicted_probability"] = model.predict_proba(X_test)[:, 1]
 
     print("Calculating priority scores...")
-    test_df["condition_severity_multiplier"] = test_df["DECK_COND_058"].apply(
-        condition_severity_multiplier
-    )
-    test_df["traffic_multiplier"] = test_df["ADT_029"].apply(traffic_multiplier)
-    test_df["scour_multiplier"] = test_df["SCOUR_CRITICAL_113"].apply(scour_multiplier)
+    test_df["condition_mult"] = test_df["DECK_COND_058"].apply(condition_severity_multiplier)
+    test_df["traffic_mult"] = test_df["ADT_029"].apply(traffic_multiplier)
+    test_df["scour_mult"] = test_df["SCOUR_CRITICAL_113"].apply(scour_multiplier)
 
     test_df["priority_score"] = (
         test_df["predicted_probability"]
-        * test_df["condition_severity_multiplier"]
-        * test_df["traffic_multiplier"]
-        * test_df["scour_multiplier"]
+        * test_df["condition_mult"]
+        * test_df["traffic_mult"]
+        * test_df["scour_mult"]
     )
 
-    test_df = test_df.sort_values("priority_score", ascending=False).reset_index(
-        drop=True
-    )
+    test_df = test_df.sort_values("priority_score", ascending=False).reset_index(drop=True)
 
     n = len(test_df)
-    high_thresh = int(np.ceil(n * config["priority_thresholds"]["high"]))
-    medium_thresh = int(
-        np.ceil(
-            n
-            * (
-                config["priority_thresholds"]["high"]
-                + config["priority_thresholds"]["medium"]
-            )
-        )
-    )
+    high_thresh = int(np.ceil(n * HIGH_PRIORITY_FRACTION))
+    medium_thresh = int(np.ceil(n * (HIGH_PRIORITY_FRACTION + MEDIUM_PRIORITY_FRACTION)))
 
     test_df["priority_class"] = "Low"
     test_df.loc[: high_thresh - 1, "priority_class"] = "High"
     test_df.loc[high_thresh : medium_thresh - 1, "priority_class"] = "Medium"
+    test_df["current_overall_condition"] = test_df.apply(calculate_overall_condition, axis=1)
 
-    def overall_condition(row):
-        vals = []
-        for col in [
-            "DECK_COND_058",
-            "SUPERSTRUCTURE_COND_059",
-            "SUBSTRUCTURE_COND_060",
-        ]:
-            if col in row and pd.notna(row[col]):
-                try:
-                    vals.append(int(float(str(row[col]).strip())))
-                except ValueError:
-                    pass
-        if not vals:
-            return np.nan
-        return min(vals)
+    output_cols = ["bridge_id"]
+    if "state" in test_df.columns:
+        output_cols.append("state")
 
-    test_df["current_overall_condition"] = test_df.apply(overall_condition, axis=1)
-
-    output_cols = [
-        "bridge_id",
+    output_cols.extend([
         "predicted_probability",
         "current_deck_condition",
         "current_superstructure_condition",
@@ -165,7 +145,7 @@ def main():
         "scour_criticality",
         "priority_score",
         "priority_class",
-    ]
+    ])
 
     rename_map = {
         "DECK_COND_058": "current_deck_condition",
@@ -176,8 +156,7 @@ def main():
     }
 
     output_df = test_df.rename(columns=rename_map)[output_cols]
-
-    output_path = os.path.join(REPORTS_DIR, "maintenance_priority_2025.csv")
+    output_path = REPORTS_DIR / "maintenance_priority_2025.csv"
     output_df.to_csv(output_path, index=False)
     print(f"Saved: {output_path}")
 
@@ -185,57 +164,55 @@ def main():
     print(test_df["priority_class"].value_counts())
 
     print("\nTop 10 bridges by priority score:")
-    print(
-        test_df[
-            ["bridge_id", "predicted_probability", "priority_score", "priority_class"]
-        ]
-        .head(10)
-        .to_string(index=False)
-    )
+    preview_cols = ["bridge_id"]
+    if "state" in test_df.columns:
+        preview_cols.append("state")
+    preview_cols.extend(["predicted_probability", "priority_score", "priority_class"])
+    print(test_df[preview_cols].head(10).to_string(index=False))
 
-    plt.figure(figsize=(10, 6))
+    # 1. Distribution of predicted risk by priority class
+    plt.figure(figsize=(9, 5))
     plt.hist(
         test_df[test_df["priority_class"] == "High"]["predicted_probability"],
         bins=20,
         alpha=0.7,
-        label="High Priority",
-        color="red",
+        label="High Priority (Top 10%)",
+        color="#d9534f",
     )
     plt.hist(
         test_df[test_df["priority_class"] == "Medium"]["predicted_probability"],
         bins=20,
         alpha=0.7,
-        label="Medium Priority",
-        color="orange",
+        label="Medium Priority (Next 20%)",
+        color="#f0ad4e",
     )
     plt.hist(
         test_df[test_df["priority_class"] == "Low"]["predicted_probability"],
         bins=20,
         alpha=0.7,
-        label="Low Priority",
-        color="green",
+        label="Low Priority (Remaining 70%)",
+        color="#5cb85c",
     )
     plt.xlabel("Predicted Probability of Poor Deck Next Year")
     plt.ylabel("Number of Bridges")
-    plt.title("Predicted Risk Distribution by Priority Class")
+    plt.title("Predicted Risk Distribution by Maintenance Priority Class")
     plt.legend()
     plt.tight_layout()
-    plt.savefig(os.path.join(FIGURES_DIR, "predicted_risk_distribution.png"), dpi=150)
+    plt.savefig(FIGURES_DIR / "predicted_risk_distribution.png", dpi=150)
     plt.close()
-    print("Saved: figures/predicted_risk_distribution.png")
 
+    # 2. Top 20 bridges horizontal bar chart
     top20 = test_df.head(20)
-    plt.figure(figsize=(12, 8))
-    plt.barh(range(len(top20)), top20["priority_score"][::-1])
-    plt.yticks(range(len(top20)), top20["bridge_id"][::-1])
-    plt.xlabel("Priority Score")
-    plt.title("Top 20 Maintenance Priority Bridges (2025)")
+    plt.figure(figsize=(10, 7))
+    labels = top20["bridge_id"] if "state" not in top20.columns else top20["state"] + "_" + top20["bridge_id"]
+    plt.barh(range(len(top20)), top20["priority_score"][::-1], color="#2b5c8f")
+    plt.yticks(range(len(top20)), labels[::-1])
+    plt.xlabel("Maintenance Priority Score")
+    plt.title("Top 20 Maintenance Priority Bridges (2025 Out-of-Time Test)")
     plt.tight_layout()
-    plt.savefig(os.path.join(FIGURES_DIR, "top20_priority.png"), dpi=150)
+    plt.savefig(FIGURES_DIR / "top20_priority.png", dpi=150)
     plt.close()
-    print("Saved: figures/top20_priority.png")
-
-    print("\nMaintenance prioritization complete.")
+    print("Visualizations saved to figures/")
 
 
 if __name__ == "__main__":

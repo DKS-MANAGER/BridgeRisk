@@ -7,18 +7,17 @@
 The NBI deck condition is a **subjective professional rating** (0–9), not a direct measurement of material strength, crack width, or load capacity. Two inspectors may rate the same bridge differently. The model learns patterns in these ratings, not in physical reality.
 
 ## 2. One-Year Prediction Does Not Prove Causation
-The model identifies correlations between 2023 features and 2024 conditions. It does not prove that, for example, "older bridges always deteriorate faster." Unobserved factors (maintenance spending, weather events, inspection standards) may drive both the features and the target.
+The model identifies correlations between year $t$ features and year $t+1$ conditions. It does not prove that, for example, "older bridges always deteriorate faster." Unobserved factors (maintenance spending, localized weather events, inspector variance) may drive both features and outcomes.
 
-## 3. State-Specific Data May Not Generalize
-Maine has a distinct climate (freeze-thaw cycles, coastal corrosion), traffic volume, and bridge inventory composition. A model trained on Maine bridges may not perform well in Texas, Florida, or urban states with different bridge types and loading patterns.
+## 3. Geographic & Regional Coverage
+While the model incorporates three diverse states (Maine, Hawaii, Delaware) representing distinct climates (freeze-thaw, marine tropical, mid-Atlantic transit), caution is still required when generalizing to states with arid climates or dramatically larger inventories (e.g., Texas, California).
 
 ## 4. Missing Values and Coding Assumptions Affect Results
-- ~16% of deck condition values are missing (`N` or blank) in each year.
-- Missing values are imputed (median for numerical, most-frequent for categorical), which may dilute true signal.
-- Some bridges may have been repaired between inspections but not recorded in the NBI.
+- Missing condition values (coded as `N` or blank) are treated as `NaN` and imputed (median for numerical, most-frequent for categorical).
+- Bridges that received unrecorded maintenance between inspections may introduce label noise.
 
 ## 5. Maintenance Multipliers Are Decision Assumptions
-The priority score multipliers (`configs/priority_config.yaml`) were chosen for transparency, not calibrated through engineering optimization. Different agencies would reasonably choose different values based on local policy, risk tolerance, and budget constraints.
+The priority score multipliers in `src/prioritize_bridges.py` were chosen for transparency and engineering defensibility, not calibrated through cost-benefit optimization. Different transportation agencies may reasonably choose different multipliers based on local policy, traffic thresholds, and budget constraints.
 
 ## 6. The Model Should Support, Not Replace, Professional Inspection
 This tool is intended to:

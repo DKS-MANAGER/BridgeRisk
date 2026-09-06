@@ -1,0 +1,52 @@
+======================================================================
+DATA PREPARATION REPORT
+Generated: 2026-09-06 21:55:12
+======================================================================
+
+Year 2023:
+  Original records: 2521
+  After deduplication: 2521
+  Duplicates removed: 0
+
+Missing condition values:
+    DECK_COND_058: 413 (16.4%)
+    SUPERSTRUCTURE_COND_059: 407 (16.1%)
+    SUBSTRUCTURE_COND_060: 407 (16.1%)
+    CULVERT_COND_062: 2114 (83.9%)
+
+Year 2024:
+  Original records: 2518
+  After deduplication: 2518
+  Duplicates removed: 0
+
+Missing condition values:
+    DECK_COND_058: 413 (16.4%)
+    SUPERSTRUCTURE_COND_059: 407 (16.2%)
+    SUBSTRUCTURE_COND_060: 407 (16.2%)
+    CULVERT_COND_062: 2111 (83.8%)
+
+Year 2025:
+  Original records: 2542
+  After deduplication: 2542
+  Duplicates removed: 0
+
+Missing condition values:
+    DECK_COND_058: 419 (16.5%)
+    SUPERSTRUCTURE_COND_059: 414 (16.3%)
+    SUBSTRUCTURE_COND_060: 414 (16.3%)
+    CULVERT_COND_062: 2129 (83.8%)
+
+Cross-year matching:
+  Bridges in all three years: 2509
+
+Training set (2023 -> 2024):
+  Records: 2509
+  Poor deck next year: 239 (9.5%)
+
+Testing set (2024 -> 2025):
+  Records: 2509
+  Poor deck next year: 230 (9.2%)
+
+Saved:
+  Training: f:\bridgerisk\data\processed\train_2023_2024.parquet
+  Testing: f:\bridgerisk\data\processed\test_2024_2025.parquet

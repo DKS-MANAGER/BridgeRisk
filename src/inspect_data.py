@@ -1,25 +1,20 @@
 """
-Inspect raw NBI data files and generate inspection reports.
+Inspect raw NBI data files for Maine, Hawaii, and Delaware (2021–2025).
 
 Author: Divyansh Kumar Singh (DKS) · M.Tech Civil Engineering (Hydraulic), IIT Kanpur
 GitHub: https://github.com/DKS-MANAGER
 """
 
 import os
-from datetime import datetime
-
+from pathlib import Path
 import pandas as pd
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-EXTRACT_DIR = os.path.join(BASE_DIR, "data", "raw", "extracted")
-REPORTS_DIR = os.path.join(BASE_DIR, "reports")
+BASE_DIR = Path(__file__).resolve().parent.parent
+EXTRACT_DIR = BASE_DIR / "data" / "raw" / "extracted"
+REPORTS_DIR = BASE_DIR / "reports"
 
-YEARS = [2023, 2024, 2025]
-FILE_MAP = {
-    2023: "ME23.txt",
-    2024: "ME24.txt",
-    2025: "ME25.txt",
-}
+STATES = ["ME", "HI", "DE"]
+YEARS = [2021, 2022, 2023, 2024, 2025]
 
 CONDITION_COLS = [
     "DECK_COND_058",
@@ -30,172 +25,99 @@ CONDITION_COLS = [
 ID_COLS = ["STATE_CODE_001", "STRUCTURE_NUMBER_008"]
 
 
-def detect_delimiter(path):
-    with open(path, "r", encoding="utf-8", errors="replace") as f:
+def load_raw_file(file_path):
+    """Load delimited or fixed-width NBI text file."""
+    with open(file_path, "r", encoding="utf-8", errors="replace") as f:
         first_line = f.readline()
+
     if "," in first_line:
-        return ","
-    if "\t" in first_line:
-        return "\t"
-    return None
-
-
-def load_year(year):
-    filename = FILE_MAP[year]
-    path = os.path.join(EXTRACT_DIR, str(year), filename)
-    if not os.path.exists(path):
-        raise FileNotFoundError(f"File not found: {path}")
-
-    delimiter = detect_delimiter(path)
-    if delimiter == ",":
-        df = pd.read_csv(path, dtype=str, low_memory=False)
-    elif delimiter == "\t":
-        df = pd.read_csv(path, sep="\t", dtype=str, low_memory=False)
+        return pd.read_csv(file_path, dtype=str, low_memory=False)
+    elif "\t" in first_line:
+        return pd.read_csv(file_path, sep="\t", dtype=str, low_memory=False)
     else:
-        with open(path, "r", encoding="utf-8", errors="replace") as f:
+        # Fallback for whitespace/fixed-width
+        with open(file_path, "r", encoding="utf-8", errors="replace") as f:
             lines = f.readlines()
         header = lines[0].strip().split()
         data = [line.strip().split() for line in lines[1:]]
-        df = pd.DataFrame(data, columns=header)
-
-    return df, delimiter
+        return pd.DataFrame(data, columns=header)
 
 
 def main():
-    os.makedirs(REPORTS_DIR, exist_ok=True)
+    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    summary_rows = []
 
-    report_lines = []
-    report_lines.append("=" * 70)
-    report_lines.append("NBI DATA INSPECTION REPORT")
-    report_lines.append(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    report_lines.append("=" * 70)
+    print("=" * 70)
+    print("NBI MULTI-STATE DATA INSPECTION (2021–2025)")
+    print("=" * 70)
 
-    yearly_counts = []
-    matching_counts = []
+    found_any = False
+    for state in STATES:
+        for year in YEARS:
+            yy = str(year)[-2:]
+            possible_names = [
+                f"{state}{yy}.txt",
+                f"{state.lower()}{yy}.txt",
+                f"{state}{yy}.TXT",
+            ]
+            file_path = None
+            for fname in possible_names:
+                p = EXTRACT_DIR / str(year) / fname
+                if p.exists():
+                    file_path = p
+                    break
 
-    dfs = {}
-    for year in YEARS:
-        df, delimiter = load_year(year)
-        dfs[year] = df
+            if file_path is None:
+                continue
 
-        report_lines.append(f"\n{'='*70}")
-        report_lines.append(f"YEAR: {year}")
-        report_lines.append(f"{'='*70}")
-        report_lines.append(f"File: {FILE_MAP[year]}")
-        report_lines.append(f"Delimiter: {delimiter if delimiter else 'Fixed-width'}")
-        report_lines.append(f"Rows: {len(df)}")
-        report_lines.append(f"Columns: {len(df.columns)}")
+            found_any = True
+            df = load_raw_file(file_path)
+            bridge_id_count = 0
+            if all(c in df.columns for c in ID_COLS):
+                bridge_ids = df[ID_COLS[0]].astype(str).str.strip() + "_" + df[ID_COLS[1]].astype(str).str.strip()
+                bridge_id_count = bridge_ids.nunique()
 
-        report_lines.append("\nFirst 5 rows (transposed for readability):")
-        for col in df.columns[:10]:
-            report_lines.append(f"  {col}: {list(df[col].head())}")
+            poor_count = 0
+            if "DECK_COND_058" in df.columns:
+                ratings = pd.to_numeric(df["DECK_COND_058"].str.strip(), errors="coerce")
+                poor_count = (ratings <= 4).sum()
 
-        report_lines.append("\nColumn names:")
-        for col in df.columns:
-            report_lines.append(f"  {col}")
+            summary_rows.append({
+                "state": state,
+                "year": year,
+                "records": len(df),
+                "unique_bridges": bridge_id_count,
+                "poor_deck_count": poor_count,
+                "columns": len(df.columns),
+            })
+            print(f"[{state} {year}] Records: {len(df):,d} | Unique Bridges: {bridge_id_count:,d} | Decks <= 4 (Poor): {poor_count:,d}")
 
-        report_lines.append("\nMissing values (top 20):")
-        missing = df.isnull().sum().sort_values(ascending=False).head(20)
-        for col, count in missing.items():
-            pct = count / len(df) * 100
-            report_lines.append(f"  {col}: {count} ({pct:.1f}%)")
+    if summary_rows:
+        summary_df = pd.DataFrame(summary_rows)
+        out_csv = REPORTS_DIR / "yearly_counts.csv"
+        summary_df.to_csv(out_csv, index=False)
+        print(f"\nSaved inventory summary to: {out_csv}")
+    elif not found_any:
+        print("\nNote: Raw extracted files not found in data/raw/extracted/. Using preprocessed data.")
 
-        report_lines.append("\nData types (first 20):")
-        for col in list(df.dtypes.index)[:20]:
-            report_lines.append(f"  {col}: {df[col].dtype}")
+    # Also inspect processed datasets if available
+    train_p = BASE_DIR / "data" / "processed" / "train_2021_2024.parquet"
+    test_p = BASE_DIR / "data" / "processed" / "test_2024_2025.parquet"
 
-        report_lines.append("\nCondition rating fields - unique values:")
-        for col in CONDITION_COLS:
-            if col in df.columns:
-                unique_vals = df[col].dropna().unique()
-                report_lines.append(
-                    f"  {col}: {sorted(unique_vals)[:20]} (total: {len(unique_vals)})"
-                )
-            else:
-                report_lines.append(f"  {col}: NOT FOUND")
-
-        report_lines.append("\nDuplicate records check:")
-        if all(c in df.columns for c in ID_COLS):
-            df["bridge_id"] = (
-                df[ID_COLS[0]].astype(str).str.strip()
-                + "_"
-                + df[ID_COLS[1]].astype(str).str.strip()
-            )
-            dup_count = df["bridge_id"].duplicated().sum()
-            report_lines.append("  Duplicate bridge IDs: " + str(dup_count))
-        else:
-            report_lines.append("  ID columns not found, cannot check duplicates")
-
-        yearly_counts.append({"year": year, "records": len(df)})
-
-    report_lines.append(f"\n{'='*70}")
-    report_lines.append("CROSS-YEAR MATCHING")
-    report_lines.append(f"{'='*70}")
-
-    if (
-        all(c in dfs[2023].columns for c in ID_COLS)
-        and all(c in dfs[2024].columns for c in ID_COLS)
-        and all(c in dfs[2025].columns for c in ID_COLS)
-    ):
-        dfs[2023]["bridge_id"] = (
-            dfs[2023][ID_COLS[0]].astype(str).str.strip()
-            + "_"
-            + dfs[2023][ID_COLS[1]].astype(str).str.strip()
-        )
-        dfs[2024]["bridge_id"] = (
-            dfs[2024][ID_COLS[0]].astype(str).str.strip()
-            + "_"
-            + dfs[2024][ID_COLS[1]].astype(str).str.strip()
-        )
-        dfs[2025]["bridge_id"] = (
-            dfs[2025][ID_COLS[0]].astype(str).str.strip()
-            + "_"
-            + dfs[2025][ID_COLS[1]].astype(str).str.strip()
-        )
-
-        ids_2023 = set(dfs[2023]["bridge_id"])
-        ids_2024 = set(dfs[2024]["bridge_id"])
-        ids_2025 = set(dfs[2025]["bridge_id"])
-
-        match_23_24 = len(ids_2023 & ids_2024)
-        match_23_25 = len(ids_2023 & ids_2025)
-        match_24_25 = len(ids_2024 & ids_2025)
-        match_all = len(ids_2023 & ids_2024 & ids_2025)
-
-        report_lines.append(f"Bridges in 2023: {len(ids_2023)}")
-        report_lines.append(f"Bridges in 2024: {len(ids_2024)}")
-        report_lines.append(f"Bridges in 2025: {len(ids_2025)}")
-        report_lines.append(f"Bridges in 2023 AND 2024: {match_23_24}")
-        report_lines.append(f"Bridges in 2023 AND 2025: {match_23_25}")
-        report_lines.append(f"Bridges in 2024 AND 2025: {match_24_25}")
-        report_lines.append(f"Bridges in ALL THREE YEARS: {match_all}")
-
-        matching_counts.append({"comparison": "2023-2024", "matched": match_23_24})
-        matching_counts.append({"comparison": "2023-2025", "matched": match_23_25})
-        matching_counts.append({"comparison": "2024-2025", "matched": match_24_25})
-        matching_counts.append({"comparison": "all_three", "matched": match_all})
-    else:
-        report_lines.append(
-            "Cannot perform matching - ID columns not found in all years."
-        )
-
-    report_text = "\n".join(report_lines)
-    with open(
-        os.path.join(REPORTS_DIR, "data_inspection.txt"), "w", encoding="utf-8"
-    ) as f:
-        f.write(report_text)
-    print(report_text)
-
-    yearly_df = pd.DataFrame(yearly_counts)
-    yearly_df.to_csv(os.path.join(REPORTS_DIR, "yearly_counts.csv"), index=False)
-
-    if matching_counts:
-        matching_df = pd.DataFrame(matching_counts)
-        matching_df.to_csv(
-            os.path.join(REPORTS_DIR, "matching_counts.csv"), index=False
-        )
-
-    print("\nInspection complete. Results saved to reports/")
+    if train_p.exists() and test_p.exists():
+        train_df = pd.read_parquet(train_p)
+        test_df = pd.read_parquet(test_p)
+        print("\n" + "=" * 70)
+        print("PREPROCESSED DATASETS FOR MODELING")
+        print("=" * 70)
+        print(f"Training Set (2021–2024 transitions): {len(train_df):,d} records across {train_df['state'].nunique() if 'state' in train_df.columns else 1} states")
+        if "target_deck_poor_next_year" in train_df.columns:
+            pos_train = train_df["target_deck_poor_next_year"].sum()
+            print(f"  Poor deck next year: {pos_train:,d} ({pos_train / len(train_df) * 100:.2f}%)")
+        print(f"Testing Set (2024–2025 out-of-time): {len(test_df):,d} bridges across {test_df['state'].nunique() if 'state' in test_df.columns else 1} states")
+        if "target_deck_poor_next_year" in test_df.columns:
+            pos_test = test_df["target_deck_poor_next_year"].sum()
+            print(f"  Poor deck next year: {pos_test:,d} ({pos_test / len(test_df) * 100:.2f}%)")
 
 
 if __name__ == "__main__":

@@ -23,10 +23,10 @@ We use a **temporal chain**:
 2. Year *t*+1 deck condition → target
 
 Example:
-- **Training:** 2023 features + 2024 target
-- **Testing:** 2024 features + 2025 target
+- **Training:** Consecutive annual transitions across 2021–2024 (2021→2022, 2022→2023, 2023→2024; 13,618 records)
+- **Testing:** Out-of-time evaluation from 2024→2025 (4,558 bridges)
 
-This mimics real-world decision making: an engineer in 2023 only knows the 2023 inspection results when deciding which bridges to repair before 2024.
+This mimics real-world decision making: an agency in year $t$ only knows inspection results up to year $t$ when allocating maintenance before year $t+1$.
 
 ## Why Chronological Splitting Is Used
 Bridge condition is **not independent** across years — a bridge's 2024 condition depends on its 2023 condition. Randomly splitting rows (e.g., 80% train, 20% test) would leak future information into training and produce unrealistically optimistic accuracy. Chronological splitting respects time and produces honest performance estimates.

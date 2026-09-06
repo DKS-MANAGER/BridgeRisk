@@ -1,93 +1,70 @@
-# Data Dictionary
+# FHWA NBI Data Dictionary & Field Reference
 
 **Author:** Divyansh Kumar Singh (DKS) · M.Tech Civil Engineering (Hydraulic), IIT Kanpur  
 **GitHub:** [DKS-MANAGER](https://github.com/DKS-MANAGER)
 
-## Source
-Official FHWA National Bridge Inventory (NBI) comma-delimited files for Maine (State Code 23).
+Reference guide for Federal Highway Administration (FHWA) National Bridge Inventory (NBI) fields used in BridgeRisk.
 
-## File Naming Convention
-- `ME23.txt` — 2023 data
-- `ME24.txt` — 2024 data
-- `ME25.txt` — 2025 data
+---
 
-## Record Format
-Each file contains one header row followed by one bridge record per row. Fields are comma-separated with single-quote text qualifiers.
+## 1. Bridge Identification
+| Field Name | NBI Item | Description | Format / Units |
+|:---|:---:|:---|:---|
+| `STATE_CODE_001` | 1 | State FIPS code (23 = Maine, 15 = Hawaii, 10 = Delaware) | 2-digit string |
+| `STRUCTURE_NUMBER_008` | 8 | Unique structure identifier within state | Text string |
+| `bridge_id` | Derived | State code + Structure number compound key | E.g., `ME_0833` |
 
-## Key Field Definitions
+---
 
-### Bridge Identifier
-| Field Name | NBI Item | Description |
-|-----------|----------|-------------|
-| `STATE_CODE_001` | 1 | State code (23 = Maine) |
-| `STRUCTURE_NUMBER_008` | 8 | Unique bridge identifier within the state |
+## 2. Condition Ratings (Target & Primary Predictors)
+Evaluated on the standard FHWA 0–9 integer rating scale:
+- **7–9:** Good condition (minor or no maintenance needed)
+- **5–6:** Fair condition (sound structural elements with minor section loss)
+- **0–4:** Poor condition (advanced deterioration, section loss, structural deficiency)
+- **N:** Not applicable (converted to `NaN` during data preparation)
 
-Combined bridge ID: `STATE_CODE_001 + "_" + STRUCTURE_NUMBER_008`
+| Field Name | NBI Item | Component Evaluated |
+|:---|:---:|:---|
+| `DECK_COND_058` | 58 | Overall bridge deck condition rating |
+| `SUPERSTRUCTURE_COND_059` | 59 | Structural support elements (girders, trusses, beams) |
+| `SUBSTRUCTURE_COND_060` | 60 | Piers, abutments, bents, and footings |
+| `CULVERT_COND_062` | 62 | Culvert barrel and headwall condition (if applicable) |
 
-### Condition Ratings (0–9 scale)
-| Field Name | NBI Item | Description |
-|-----------|----------|-------------|
-| `DECK_COND_058` | 58 | Deck condition rating |
-| `SUPERSTRUCTURE_COND_059` | 59 | Superstructure condition rating |
-| `SUBSTRUCTURE_COND_060` | 60 | Substructure condition rating |
-| `CULVERT_COND_062` | 62 | Culvert condition rating (if applicable) |
+**Target Variable:**
+- `target_deck_poor_next_year`: Binary indicator set to **1** if `DECK_COND_058` in year $t+1$ is $\le 4$ (Poor), and **0** if $> 4$ (Fair or Good).
 
-**Condition classes:**
-- **Good:** 7, 8, 9
-- **Fair:** 5, 6
-- **Poor:** 0, 1, 2, 3, 4
+---
 
-Missing or not applicable values are coded as `N` in the raw files and converted to `NaN` during cleaning.
+## 3. Geometric & Structural Attributes
+| Field Name | NBI Item | Description | Units |
+|:---|:---:|:---|:---|
+| `YEAR_BUILT_027` | 27 | Year structure was constructed | Calendar year |
+| `bridge_age` | Derived | Inspection year minus `YEAR_BUILT_027` | Years |
+| `MAIN_UNIT_SPANS_045` | 45 | Number of spans in main unit | Integer count |
+| `MAX_SPAN_LEN_MT_048` | 48 | Length of maximum span | Meters |
+| `STRUCTURE_LEN_MT_049` | 49 | Total structure length | Meters |
+| `ROADWAY_WIDTH_MT_051` | 51 | Bridge roadway width, curb-to-curb | Meters |
+| `DECK_WIDTH_MT_052` | 52 | Out-to-out deck width | Meters |
+| `DECK_AREA` | Derived | Deck width $\times$ Structure length | Square meters |
+| `TRAFFIC_LANES_ON_028A` | 28A | Number of traffic lanes on bridge | Integer count |
 
-### Traffic Features
-| Field Name | NBI Item | Description |
-|-----------|----------|-------------|
-| `ADT_029` | 29 | Average Daily Traffic (vehicles per day) |
-| `PERCENT_ADT_TRUCK_109` | 109 | Percentage of ADT that is truck traffic |
+---
 
-### Structural Features
-| Field Name | NBI Item | Description |
-|-----------|----------|-------------|
-| `YEAR_BUILT_027` | 27 | Year the structure was built |
-| `MAIN_UNIT_SPANS_045` | 45 | Number of spans in the main unit |
-| `MAX_SPAN_LEN_MT_048` | 48 | Length of maximum span (meters) |
-| `STRUCTURE_LEN_MT_049` | 49 | Structure length (meters) |
-| `ROADWAY_WIDTH_MT_051` | 51 | Bridge roadway width, curb-to-curb (meters) |
-| `DECK_WIDTH_MT_052` | 52 | Deck width, out-to-out (meters) |
-| `TRAFFIC_LANES_ON_028A` | 28A | Number of traffic lanes on the structure |
+## 4. Traffic & Operational Loading
+| Field Name | NBI Item | Description | Units |
+|:---|:---:|:---|:---|
+| `ADT_029` | 29 | Average Daily Traffic | Vehicles per day |
+| `PERCENT_ADT_TRUCK_109` | 109 | Percentage of ADT representing truck traffic | Percent (0–99%) |
+| `OPERATING_RATING_064` | 64 | Operating load rating (maximum permissible load) | Metric tons / rating factor |
+| `INVENTORY_RATING_066` | 66 | Inventory load rating (customary live load capacity) | Metric tons / rating factor |
 
-### Material and Type
-| Field Name | NBI Item | Description |
-|-----------|----------|-------------|
-| `STRUCTURE_KIND_043A` | 43A | Kind of material/design (e.g., concrete, steel) |
-| `STRUCTURE_TYPE_043B` | 43B | Type of design/construction (e.g., stringer/multi-beam) |
-| `DECK_STRUCTURE_TYPE_107` | 107 | Deck structure type |
-| `SURFACE_TYPE_108A` | 108A | Type of wearing surface |
-| `DECK_PROTECTION_108C` | 108C | Deck protection system |
+---
 
-### Risk and Operational Features
-| Field Name | NBI Item | Description |
-|-----------|----------|-------------|
-| `SCOUR_CRITICAL_113` | 113 | Scour critical bridge status |
+## 5. Material, Design & Foundation Risk
+| Field Name | NBI Item | Description / Key Categories |
+|:---|:---:|:---|
+| `STRUCTURE_KIND_043A` | 43A | Material type (1=Concrete, 2=Concrete continuous, 3=Steel, 4=Steel continuous, 5=Prestressed concrete, 6=Prestressed continuous, 7=Timber) |
+| `STRUCTURE_TYPE_043B` | 43B | Design type (1=Slab, 2=Stringer/Multi-beam, 3=Girder/Floorbeam, 4=Tee beam, 5=Box girder) |
+| `SCOUR_CRITICAL_113` | 113 | Scour evaluation rating (1, 2, T = Scour critical; 8 = Stable; N = Not over water) |
 | `WATERWAY_EVAL_071` | 71 | Waterway adequacy evaluation |
-| `FUNCTIONAL_CLASS_026` | 26 | Functional class of inventory route |
-| `HIGHWAY_SYSTEM_104` | 104 | Highway system of inventory route |
-| `OPEN_CLOSED_POSTED_041` | 41 | Structure open/posted/closed status |
-
-### Computed Features
-| Field Name | Description |
-|-----------|-------------|
-| `bridge_age` | `inspection_year - YEAR_BUILT_027` |
-| `inspection_year` | Year of inspection (2023, 2024, or 2025) |
-
-## Missing Value Codes
-In the raw files, missing or not-applicable values are represented by:
-- `N` — Not applicable or missing
-- Blank/empty string — Missing
-
-These are converted to `NaN` during data preparation.
-
-## Derived Target
-| Field Name | Description |
-|-----------|-------------|
-| `target_deck_poor_next_year` | 1 if next-year `DECK_COND_058` ≤ 4, else 0 |
+| `DECK_PROTECTION_108C` | 108C | Type of deck protection system (epoxy coating, cathodic protection, membrane) |
