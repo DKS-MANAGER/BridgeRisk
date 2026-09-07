@@ -1,4 +1,4 @@
 model,tn,fp,fn,tp
-logistic_regression,4045,276,15,222
-random_forest,4047,274,16,221
-xgboost,4283,38,21,216
+logistic_regression,560346,44027,504,14343
+random_forest,586720,17653,954,13893
+xgboost,603135,1238,1546,13301

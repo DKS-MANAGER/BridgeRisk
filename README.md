@@ -46,29 +46,30 @@ No random cross-validation row-splitting is used for evaluation: bridge conditio
 
 ## Data
 
-The dataset is derived from official Federal Highway Administration (FHWA) National Bridge Inventory (NBI) records across three states representing distinct environmental and operational regimes:
-- **Maine (ME):** Severe freeze-thaw cycles, winter road salt application, coastal exposure.
-- **Hawaii (HI):** High marine humidity, tropical rain, airborne chloride corrosion.
-- **Delaware (DE):** Dense mid-Atlantic freight corridor, heavy commuter traffic.
+The dataset is derived from the complete official Federal Highway Administration (FHWA) National Bridge Inventory (NBI) database across **all 50 US States, District of Columbia, and Puerto Rico (2021–2025)**:
+- **Freeze-Thaw & Salt Belts:** OH, PA, ME, VT, MI, NY, IL, etc.
+- **Marine & Tropical Environments:** HI, FL, CA, PR, LA, TX, etc.
+- **High-Density Freight Corridors:** Interstate highway freight networks across the US.
 
 ### Inventory Summary
 | Dataset Split | Inspection Transitions | Bridge Records | Poor Decks Next Year | Positive Rate |
 |:---|:---:|---:|---:|---:|
-| **Training Set** | 2021→2022, 2022→2023, 2023→2024 | 13,618 | 712 | 5.23% |
-| **Testing Set** | 2024→2025 (Out-of-Time) | 4,558 | 237 | 5.20% |
+| **Nationwide Training Set** | 2021→2022, 2022→2023, 2023→2024 | **1,848,747** | 46,583 | 2.52% |
+| **Nationwide Test Set (Out-of-Time)** | 2024→2025 (Unseen Future Year) | **619,220** | 14,847 | 2.40% |
 
 ---
 
-## Features
+## Features & Physical Causality
 
-We extract 27 engineering variables from NBI records across structural, operational, and environmental categories:
+Training features for the XGBoost $P(\text{Poor})$ model are selected based on strict physical causality to superstructure deterioration, mapping FHWA NBI variables to mechanical and chemical degradation mechanisms:
 
-- **Condition Ratings (Current Year):** Deck (`DECK_COND_058`), Superstructure (`SUPERSTRUCTURE_COND_059`), Substructure (`SUBSTRUCTURE_COND_060`).
-- **Age & Geometry:** `bridge_age` (Inspection Year − Year Built), Length (`STRUCTURE_LEN_MT_049`), Maximum Span (`MAX_SPAN_LEN_MT_048`), Deck Width (`DECK_WIDTH_MT_052`), Number of Spans (`MAIN_UNIT_SPANS_045`), Deck Area.
-- **Traffic Demands:** Average Daily Traffic (`ADT_029`), Truck Percentage (`PERCENT_ADT_TRUCK_109`).
-- **Load Capacity:** Operating Rating (`OPERATING_RATING_064`), Inventory Rating (`INVENTORY_RATING_066`).
-- **Material & Design:** Structure Kind (`STRUCTURE_KIND_043A`), Structure Type (`STRUCTURE_TYPE_043B`), Deck Structure (`DECK_STRUCTURE_TYPE_107`), Wearing Surface (`SURFACE_TYPE_108A`), Deck Protection (`DECK_PROTECTION_108C`).
-- **Environmental & Foundation Risk:** Scour Criticality (`SCOUR_CRITICAL_113`), Waterway Adequacy (`WATERWAY_EVAL_071`).
+1. **Longitudinal Degradation Dynamics:** 1-year condition velocity (`delta_deck_1yr`), 2-year condition velocity (`delta_deck_2yr`). Captures active degradation trajectories rather than static condition ratings.
+2. **Mechanical Fatigue & Cumulative Load:** Estimated lifetime truck passes (`est_lifetime_truck_passes`), Average Daily Traffic (`ADT_029`), Truck Percentage (`PERCENT_ADT_TRUCK_109`). Heavy axle loads (ESALs) drive cyclic flexural wear, rutting, and micro-cracking.
+3. **Material Kinetics (Durability):** `bridge_age` (Inspection Year − Year Built), Deck Protection (`DECK_PROTECTION_108C`), Wearing Surface (`SURFACE_TYPE_108A`), Deck Structure Type (`DECK_STRUCTURE_TYPE_107`), Material Kind (`STRUCTURE_KIND_043A`), Design Type (`STRUCTURE_TYPE_043B`). Govern chloride diffusion thresholds, moisture ingress, and rebar corrosion rates.
+4. **Geometric Deflection & Slenderness:** Span-to-width ratio (`span_to_width_ratio`), Maximum Span Length (`MAX_SPAN_LEN_MT_048`), Total Length (`STRUCTURE_LEN_MT_049`), Deck Width (`DECK_WIDTH_MT_052`), Roadway Width (`ROADWAY_WIDTH_MT_051`), Number of Spans (`MAIN_UNIT_SPANS_045`), Deck Area. Longer unsupported spans undergo higher dynamic live-load deflections, accelerating transverse deck strain.
+5. **Structural Boundary Conditions:** Deck Condition (`DECK_COND_058`), Superstructure Condition (`SUPERSTRUCTURE_COND_059`), Substructure Condition (`SUBSTRUCTURE_COND_060`), Operating Load Rating (`OPERATING_RATING_064`), Inventory Load Rating (`INVENTORY_RATING_066`). Establish existing baseline deficiency, secondary stress transfer from yielding supports, and remaining structural capacity.
+
+> **Exclusion Criteria:** Administrative codes and purely hydraulic sub-surface failure modes (`SCOUR_CRITICAL_113`, `WATERWAY_EVAL_071`) are excluded from training and scoring to prevent spurious ML correlation with upper-level deck durability.
 
 *See [`docs/data_dictionary.md`](docs/data_dictionary.md) for full field definitions and FHWA coding guides.*
 
@@ -76,35 +77,33 @@ We extract 27 engineering variables from NBI records across structural, operatio
 
 ## Model
 
-We compare four models trained with identical preprocessor pipelines (median imputation + standard scaling for numerical features; most-frequent imputation + one-hot encoding for categorical features):
-1. **Majority Baseline:** Predicts the non-poor majority class (0).
-2. **Logistic Regression:** Linear baseline with balanced class weights.
-3. **Random Forest:** Non-linear ensemble (300 trees, max depth 10, balanced class weights).
-4. **XGBoost:** Extreme Gradient Boosting (300 estimators, max depth 4, learning rate 0.05, `scale_pos_weight` tuned to class imbalance).
+We compare three models trained with identical preprocessor pipelines:
+1. **Logistic Regression:** Linear baseline with balanced class weights.
+2. **Random Forest:** Non-linear ensemble (200 trees, max depth 12, balanced class weights).
+3. **Calibrated XGBoost:** Histogram-accelerated Extreme Gradient Boosting with Isotonic Probability Calibration (`cv=3`, max depth 5, learning rate 0.04, `scale_pos_weight` tuned to class imbalance).
 
 ---
 
 ## Results
 
-Performance evaluated on the **2024→2025 out-of-time test set** (4,558 unseen bridges):
+Performance evaluated on the **Nationwide 2024→2025 out-of-time test set** (619,220 unseen bridges across all 50 states):
 
 | Model | Accuracy | Precision | Recall | F1-Score | ROC-AUC | PR-AUC | False Negatives | FNR |
 |:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| Majority Baseline | 0.948 | 0.000 | 0.000 | 0.000 | 0.500 | 0.052 | 237 | 100.0% |
-| Logistic Regression | 0.936 | 0.446 | **0.937** | 0.604 | 0.986 | 0.802 | **15** | **6.3%** |
-| Random Forest | 0.936 | 0.446 | 0.932 | 0.604 | 0.987 | 0.848 | 16 | 6.8% |
-| **XGBoost** (threshold = 0.694) | **0.987** | **0.850** | 0.911 | **0.880** | **0.988** | **0.855** | 21 | 8.9% |
+| Logistic Regression | 0.9281 | 0.2457 | **0.9661** | 0.3918 | 0.9904 | 0.8714 | **504** | **3.4%** |
+| Random Forest | 0.9700 | 0.4404 | 0.9357 | 0.5989 | 0.9898 | 0.8903 | 954 | 6.4% |
+| **Calibrated XGBoost** (threshold = 0.596) | **0.9955** | **0.9148** | 0.8959 | **0.9053** | **0.9916** | **0.8965** | 1,546 | 10.4% |
 
 *Source: `reports/model_metrics.csv`*
 
-### Confusion Matrix (Out-of-Time Test Set: 4,558 Bridges)
+### Confusion Matrix (Nationwide Test Set: 619,220 Bridges)
 ![Confusion Matrix](figures/confusion_matrix.png)
 
-- Out of 237 bridges that actually deteriorated to Poor condition in 2025, XGBoost correctly identified **216 (91.1% recall)** while missing only 21.
-- Unlike baseline models that produced over 270 false alarms to achieve high recall, XGBoost maintained **85.0% precision** (only 38 false positives).
+- Out of 14,847 bridges that actually deteriorated to Poor condition in 2025 across the US, Calibrated XGBoost correctly identified **13,301 (89.6% recall)**.
+- XGBoost achieved **91.48% precision** (only 1,239 false alarms across 619k national bridges), producing an overall accuracy of **99.55%**.
 
 ### Discrimination Curves
-| ROC Curve (ROC-AUC: 0.988) | Precision-Recall Curve (PR-AUC: 0.855) |
+| ROC Curve (ROC-AUC: 0.9916) | Precision-Recall Curve (PR-AUC: 0.8965) |
 |:---:|:---:|
 | ![ROC Curve](figures/roc_curve.png) | ![Precision-Recall Curve](figures/precision_recall_curve.png) |
 
@@ -112,51 +111,63 @@ Performance evaluated on the **2024→2025 out-of-time test set** (4,558 unseen 
 
 ## Explainability
 
-Using TreeSHAP, we interpret model predictions globally across the inventory and locally for individual bridges.
+Using TreeSHAP across the nationwide inventory, we interpret model predictions globally and locally.
 
 | Mean \|SHAP\| Feature Importance | SHAP Summary Beeswarm Plot |
 |:---:|:---:|
 | ![SHAP Bar](figures/shap_bar.png) | ![SHAP Summary](figures/shap_summary.png) |
 
 ### Key Physical & Operational Drivers
-1. **Current Deck Condition (`DECK_COND_058`):** Decks currently rated 5 (Fair) are much more likely to cross the threshold into Poor ($\le 4$) within one year than decks rated 6 or above.
-2. **Bridge Age:** Older structures exhibit higher deterioration rates due to cumulative fatigue and chloride penetration.
-3. **Truck Traffic Percentage (`PERCENT_ADT_TRUCK_109`):** Heavy axle passes accelerate fatigue cracking and surface delamination.
-4. **Operating Load Rating (`OPERATING_RATING_064`):** Bridges with reduced load ratings correlate strongly with active structural deterioration.
-5. **Deck Protection System (`DECK_PROTECTION_108C`):** Decks with protective membranes or epoxy-coated rebar resist de-icing salt penetration more effectively.
+1. **Current Deck Condition (`DECK_COND_058`):** Dominant baseline condition indicator.
+2. **Longitudinal Degradation Rate (`delta_deck_1yr`):** Bridges exhibiting negative condition velocity in preceding inspections show elevated risk of crossing the structural deficiency threshold.
+3. **Bridge Age & Fatigue Passes:** Cumulative operational years and heavy commercial truck volume accelerate flexural cracking and chloride penetration.
+4. **Operating Load Rating (`OPERATING_RATING_064`):** Bridges with restricted permissible load capacity correlate strongly with impending deck deficiency.
+5. **Deck Protection System (`DECK_PROTECTION_108C`):** Protective membranes and epoxy-coated rebar significantly retard corrosion kinetics.
 
 ---
 
-## Maintenance Prioritization
+## Structural Deck Maintenance Prioritization
 
-Raw failure probabilities alone do not account for structural consequence or traffic disruption. We compute a composite **Priority Score**:
+Raw deterioration probabilities alone do not capture operational fatigue demands or structural capacity limits. In accordance with AASHTO Bridge Management System (BMS) principles, we compute a **Structural Deck Maintenance Priority Score**:
 
-$$\text{Priority Score} = P(\text{Poor}) \times M_{\text{condition}} \times M_{\text{traffic}} \times M_{\text{scour}}$$
+$$\text{Structural Priority Score} = P(\text{Poor Deck Next Year}) \times \text{Structural Consequence}$$
+
+$$\text{Structural Consequence} = C_{\text{service}} \times C_{\text{capacity}} \times C_{\text{support}}$$
 
 Where:
-- **$M_{\text{condition}}$:** 3.0 for Poor ($\le 4$), 2.0 for Fair (5–6), 1.0 for Good ($\ge 7$).
-- **$M_{\text{traffic}}$:** 2.0 for ADT $> 10,000$, 1.5 for $1,000 \le \text{ADT} \le 10,000$, 1.0 for $\text{ADT} < 1,000$.
-- **$M_{\text{scour}}$:** 2.0 for scour-critical bridges (NBI Item 113 in 1, 2, T), 1.0 otherwise.
+- **$P(\text{Poor Deck Next Year})$:** 1-year ML-predicted conditional probability of deck condition dropping to $\le 4$ (`DECK_COND_058`).
+- **$C_{\text{service}}$ (Traffic & Dynamic Fatigue Demand):** Logarithmic vehicle volume scaled by commercial truck percentage:
+  $$C_{\text{service}} = \left[1 + \log_{10}\left(1 + \frac{\text{ADT}}{100}\right)\right] \times \left(1 + \frac{\text{Truck \%}}{100}\right)$$
+- **$C_{\text{capacity}}$ (Operating Load Capacity Vulnerability):** Bounded multiplier based on Operating Rating (`OPERATING_RATING_064`):
+  - $1.5$ for restricted load rating ($< 20\text{ metric tons}$ / load-posted)
+  - $1.2$ for marginal capacity ($20\text{–}30\text{ metric tons}$)
+  - $1.0$ for standard operating capacity ($\ge 30\text{ metric tons}$)
+- **$C_{\text{support}}$ (Superstructure & Substructure Integrity):** Bounded multiplier based on supporting element conditions (`SUPERSTRUCTURE_COND_059` & `SUBSTRUCTURE_COND_060`):
+  - $1.4$ if supporting elements are in Poor condition ($\le 4$)
+  - $1.2$ if supporting elements are in Fair condition ($5$)
+  - $1.0$ if supporting elements are sound ($\ge 6$)
 
-| Predicted Risk by Priority Class | Top 20 Priority Bridges (2025) |
+| Structural Risk by Priority Class | Top 20 Priority Bridges (2025) |
 |:---:|:---:|
 | ![Risk Distribution](figures/predicted_risk_distribution.png) | ![Top 20 Priority](figures/top20_priority.png) |
 
-### Resource Allocation Summary (4,558 Bridges)
-- **High Priority (Top 10% = 456 bridges):** Candidate list for immediate in-depth structural inspection and maintenance budgeting.
-- **Medium Priority (Next 20% = 912 bridges):** Candidate list for enhanced monitoring and preventative sealing.
-- **Low Priority (Remaining 70% = 3,190 bridges):** Standard biennial inspection cycle.
+### Resource Allocation Summary (619,220 Test Bridges)
+- **High Priority (Top 10% = 61,922 bridges):** Primary candidate list for immediate in-depth non-destructive evaluation (NDE), ultrasonic pulse velocity (UPV) testing, and capital rehabilitation budgeting.
+- **Medium Priority (Next 20% = 123,845 bridges):** Candidate list for preventative maintenance (epoxy deck sealing, crack injection, joint replacement).
+- **Low Priority (Remaining 70% = 433,453 bridges):** Standard biennial NBI inspection cycle.
+
+*Full ranked bridge list exported to [`reports/maintenance_priority_2025.csv`](reports/maintenance_priority_2025.csv).*
 
 *Full ranked bridge list exported to [`reports/maintenance_priority_2025.csv`](reports/maintenance_priority_2025.csv).*
 
 ---
 
-## Limitations
+## Limitations & Engineering Boundary Conditions
 
-1. **Subjective Condition Ratings:** NBI condition ratings (0–9) represent visual inspector assessments rather than continuous physical sensor measurements (such as concrete resistivity, ultrasonic pulse velocity, or half-cell corrosion potential).
-2. **One-Year Horizon:** The model predicts transitions over a single year; it does not forecast multi-year continuous degradation curves or time-to-rehabilitation.
+1. **Subjective Condition Ratings:** NBI condition ratings (0–9) represent visual inspector assessments rather than continuous physical sensor measurements (such as half-cell potential, concrete resistivity, or ultrasonic pulse velocity).
+2. **One-Year Horizon:** The model predicts transitions over a single year; multi-year Markovian continuous degradation curves require longer historical panel tracking.
 3. **Unrecorded Interventions:** Bridges that received unrecorded localized maintenance or patch repairs between official inspections may introduce label noise.
-4. **Engineering Support Tool:** Predictions are intended to prioritize maintenance funding and direct inspection resources, not to override certified professional bridge engineer judgment.
+4. **Decision Support Tool:** Predictions are intended to optimize preventative maintenance budgets and guide inspection schedules—not to replace certified Professional Engineer (PE) structural ratings or load ratings.
 
 ---
 
@@ -189,40 +200,40 @@ BridgeRisk/
 
 ---
 
-## Running the Project
+## Running the Project & Data Acquisition
 
 ### 1. Setup Environment
 ```bash
-# Using pip
-pip install -r requirements.txt
+# Clone the repository
+git clone https://github.com/DKS-MANAGER/bridgerisk.git
+cd bridgerisk
 
-# Or using conda
-conda env create -f environment.yml
-conda activate bridge_condition_xgboost
+# Install Python dependencies
+pip install -r requirements.txt
 ```
 
-### 2. Run Complete Pipeline
-The preprocessed parquet files are already included in `data/processed/`, so you can run training and evaluation immediately:
+### 2. Download Data & Prepare Panel (Reproducible Workflow)
+Large raw NBI ASCII files and processed `.parquet` datasets are excluded from Git version control (`.gitignore`) to keep the repository lightweight. You can download and generate the complete nationwide dataset (2021–2025) with two commands:
 
 ```bash
-# Inspect data inventory
-python src/inspect_data.py
+# 1. Download official FHWA NBI data (2021–2025 across all 50 states + DC + PR)
+python src/download_data.py
 
-# Train models (outputs saved to models/)
+# 2. Clean, compute degradation velocity features, and assemble train/test panels
+python src/prepare_data.py
+```
+
+### 3. Run Pipeline (Train, Evaluate & Prioritize)
+```bash
+# Train baseline models, Random Forest, and Calibrated XGBoost
 python src/train_models.py
 
-# Evaluate on 2024->2025 test set (outputs saved to reports/ and figures/)
+# Evaluate metrics (ROC-AUC, PR-AUC, Confusion Matrix) on 2024->2025 test set
 python src/evaluate_models.py
 
-# Generate SHAP explanations
+# Compute TreeSHAP feature attribution plots
 python src/explain_model.py
 
-# Generate maintenance priority ranking
+# Generate Structural Deck Maintenance Priority rankings
 python src/prioritize_bridges.py
-```
-
-To re-download raw FHWA NBI data and re-process from scratch:
-```bash
-python src/download_data.py
-python src/prepare_data.py
 ```

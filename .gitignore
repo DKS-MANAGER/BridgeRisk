@@ -17,12 +17,18 @@ ENV/
 .DS_Store
 Thumbs.db
 
-# Raw downloaded NBI data archives and extracts
+# Raw and processed NBI data
 data/raw/downloads/
 data/raw/extracted/
+data/processed/
+*.parquet
 *.zip
 *.7z
 *.tar.gz
+
+# Trained models (large binaries)
+models/*.joblib
+models/*.pkl
 
 # Local logs and scratch files
 *.log

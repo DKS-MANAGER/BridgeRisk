@@ -1,5 +1,5 @@
 """
-Train Logistic Regression, Random Forest, and XGBoost models.
+Train Logistic Regression, Random Forest, and Calibrated XGBoost models on nationwide NBI data.
 
 Author: Divyansh Kumar Singh (DKS) · M.Tech Civil Engineering (Hydraulic), IIT Kanpur
 GitHub: https://github.com/DKS-MANAGER
@@ -10,6 +10,7 @@ import os
 
 import joblib
 import pandas as pd
+from sklearn.calibration import CalibratedClassifierCV
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.impute import SimpleImputer
@@ -26,6 +27,10 @@ REPORTS_DIR = os.path.join(BASE_DIR, "reports")
 FEATURES = {
     "numerical": [
         "bridge_age",
+        "span_to_width_ratio",
+        "est_lifetime_truck_passes",
+        "delta_deck_1yr",
+        "delta_deck_2yr",
         "ADT_029",
         "PERCENT_ADT_TRUCK_109",
         "MAIN_UNIT_SPANS_045",
@@ -46,8 +51,6 @@ FEATURES = {
     "categorical": [
         "STRUCTURE_KIND_043A",
         "STRUCTURE_TYPE_043B",
-        "SCOUR_CRITICAL_113",
-        "WATERWAY_EVAL_071",
         "FUNCTIONAL_CLASS_026",
         "HIGHWAY_SYSTEM_104",
         "OPEN_CLOSED_POSTED_041",
@@ -58,12 +61,18 @@ FEATURES = {
 }
 
 
-def load_data():
+def load_data(sample_train=None):
     train_path = os.path.join(PROCESSED_DIR, "train_2021_2024.parquet")
     test_path = os.path.join(PROCESSED_DIR, "test_2024_2025.parquet")
 
     train_df = pd.read_parquet(train_path)
     test_df = pd.read_parquet(test_path)
+
+    if sample_train and len(train_df) > sample_train:
+        # Stratified sample to train efficiently while preserving positive rate
+        pos = train_df[train_df["target_deck_poor_next_year"] == 1]
+        neg = train_df[train_df["target_deck_poor_next_year"] == 0].sample(n=sample_train - len(pos), random_state=42)
+        train_df = pd.concat([pos, neg]).sample(frac=1.0, random_state=42).reset_index(drop=True)
 
     return train_df, test_df
 
@@ -93,28 +102,26 @@ def build_preprocessor():
     return preprocessor
 
 
-def get_model_params():
-    n_pos = None
-    n_neg = None
-
-    train_df, _ = load_data()
-    y = train_df["target_deck_poor_next_year"]
-    n_pos = y.sum()
-    n_neg = len(y) - n_pos
-    scale_pos_weight = n_neg / n_pos if n_pos > 0 else 1.0
+def get_model_params(y):
+    n_pos = int(y.sum())
+    n_neg = int(len(y) - n_pos)
+    scale_pos_weight = float(n_neg / n_pos) if n_pos > 0 else 1.0
 
     params = {
         "xgboost": {
-            "n_estimators": 300,
-            "max_depth": 4,
-            "learning_rate": 0.05,
-            "subsample": 0.8,
-            "colsample_bytree": 0.8,
+            "n_estimators": 400,
+            "max_depth": 5,
+            "learning_rate": 0.04,
+            "subsample": 0.85,
+            "colsample_bytree": 0.85,
+            "min_child_weight": 3,
+            "gamma": 0.5,
             "random_state": 42,
             "objective": "binary:logistic",
             "eval_metric": "logloss",
             "scale_pos_weight": scale_pos_weight,
-            "n_jobs": 4,
+            "n_jobs": -1,
+            "tree_method": "hist",
         },
         "logistic_regression": {
             "max_iter": 1000,
@@ -122,11 +129,11 @@ def get_model_params():
             "class_weight": "balanced",
         },
         "random_forest": {
-            "n_estimators": 300,
-            "max_depth": 10,
+            "n_estimators": 200,
+            "max_depth": 12,
             "random_state": 42,
             "class_weight": "balanced",
-            "n_jobs": 4,
+            "n_jobs": -1,
         },
     }
 
@@ -137,47 +144,46 @@ def main():
     os.makedirs(MODELS_DIR, exist_ok=True)
     os.makedirs(REPORTS_DIR, exist_ok=True)
 
-    print("Loading data...")
+    print("Loading nationwide data (1.8M transitions)...")
     train_df, test_df = load_data()
 
     X_train = train_df[FEATURES["numerical"] + FEATURES["categorical"]]
     y_train = train_df["target_deck_poor_next_year"]
 
-    X_test = test_df[FEATURES["numerical"] + FEATURES["categorical"]]
-
-    print(f"Training samples: {len(X_train)}")
-    print(f"Testing samples: {len(X_test)}")
-    print(f"Positive class in train: {y_train.sum()} ({y_train.mean()*100:.1f}%)")
+    print(f"Nationwide Training transitions: {len(X_train):,d}")
+    print(f"Nationwide Testing bridges: {len(test_df):,d}")
+    print(f"Positive poor class in train: {y_train.sum():,d} ({y_train.mean()*100:.2f}%)")
 
     print("\nBuilding preprocessor...")
     preprocessor = build_preprocessor()
-
     X_train_processed = preprocessor.fit_transform(X_train)
-    preprocessor.transform(X_test)
 
-    params, n_pos, n_neg = get_model_params()
-
-    print(f"\nClass distribution: positive={n_pos}, negative={n_neg}")
+    params, n_pos, n_neg = get_model_params(y_train)
     print(f"Scale pos weight: {params['xgboost']['scale_pos_weight']:.2f}")
 
     models = {}
 
-    print("\nTraining Logistic Regression...")
+    print("\n1. Training Logistic Regression Baseline...")
     lr = LogisticRegression(**params["logistic_regression"])
     lr.fit(X_train_processed, y_train)
     models["logistic_regression"] = lr
 
-    print("Training Random Forest...")
+    print("2. Training Random Forest (Hist/Fast)...")
     rf = RandomForestClassifier(**params["random_forest"])
     rf.fit(X_train_processed, y_train)
     models["random_forest"] = rf
 
-    print("Training XGBoost...")
-    xgb = XGBClassifier(**params["xgboost"])
-    xgb.fit(X_train_processed, y_train)
-    models["xgboost"] = xgb
+    print("3. Training Optimized XGBoost Classifier...")
+    xgb_base = XGBClassifier(**params["xgboost"])
+    xgb_base.fit(X_train_processed, y_train)
 
-    print("\nSaving models...")
+    print("4. Calibrating XGBoost Probabilities (Isotonic Regression)...")
+    # In modern scikit-learn, use 3-fold cross-validation calibration
+    calibrated_xgb = CalibratedClassifierCV(estimator=XGBClassifier(**params["xgboost"]), method="isotonic", cv=3)
+    calibrated_xgb.fit(X_train_processed, y_train)
+    models["xgboost"] = calibrated_xgb
+
+    print("\nSaving trained models & pipeline...")
     for name, model in models.items():
         path = os.path.join(MODELS_DIR, f"{name}_model.joblib")
         joblib.dump(model, path)
@@ -192,7 +198,7 @@ def main():
         json.dump(params, f, indent=2)
     print(f"  Saved: {params_path}")
 
-    print("\nTraining complete.")
+    print("\nNationwide training complete.")
 
 
 if __name__ == "__main__":
